@@ -27,7 +27,7 @@ import com.blockchain.emr.auth.domain.*;
 import com.blockchain.emr.auth.infrastructure.*;
 import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
-import com.blockchain.emr.integration.blockchain.BlockchainService;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 import com.blockchain.emr.medicalrecord.infrastructure.RecordAccessLogRepository;
 import com.blockchain.emr.patient.domain.PatientProfile;
 import com.blockchain.emr.patient.infrastructure.PatientProfileRepository;

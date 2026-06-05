@@ -37,6 +37,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/health",
+                                "/actuator/health",
+                                "/actuator/prometheus",
+                                "/v3/api-docs/**",
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
                                 "/auth/register",
                                 "/auth/login",
                                 "/auth/refresh").permitAll()
@@ -50,6 +55,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/departments/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/departments").authenticated()
                         .requestMatchers("/medical-files/**").hasRole("PATIENT")
+                        .requestMatchers("/access-control/**").hasRole("PATIENT")
                         .requestMatchers("/medical-records/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.POST, "/blockchain/events/sync").hasRole("ADMIN")
                         .requestMatchers("/blockchain/**").authenticated()

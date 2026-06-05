@@ -1,4 +1,4 @@
-package com.blockchain.emr.integration.blockchain;
+package com.blockchain.emr.integration.blockchain.application;
 
 import java.math.BigInteger;
 import java.util.Locale;
@@ -6,6 +6,13 @@ import java.util.Locale;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
+import com.blockchain.emr.integration.blockchain.infrastructure.persistence.BlockchainAccessEventEntity;
+import com.blockchain.emr.integration.blockchain.infrastructure.persistence.BlockchainAccessEventRepository;
+import com.blockchain.emr.integration.blockchain.infrastructure.persistence.BlockchainRecordEventEntity;
+import com.blockchain.emr.integration.blockchain.infrastructure.persistence.BlockchainRecordEventRepository;
+import com.blockchain.emr.integration.blockchain.infrastructure.persistence.BlockchainSyncState;
+import com.blockchain.emr.integration.blockchain.infrastructure.persistence.BlockchainSyncStateRepository;
 
 @Service
 public class BlockchainEventSyncService {

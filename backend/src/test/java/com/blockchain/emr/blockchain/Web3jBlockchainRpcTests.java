@@ -10,7 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
-import com.blockchain.emr.integration.blockchain.BlockchainService;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 
 @SpringBootTest
 @ActiveProfiles("test")

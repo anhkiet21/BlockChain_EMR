@@ -19,8 +19,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.blockchain.emr.integration.blockchain.BlockchainService;
-import com.blockchain.emr.integration.blockchain.BlockchainService.TransactionState;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainService.TransactionState;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @SpringBootTest

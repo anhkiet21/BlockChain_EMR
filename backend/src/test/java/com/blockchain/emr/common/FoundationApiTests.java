@@ -49,6 +49,16 @@ class FoundationApiTests {
     }
 
     @Test
+    void exposesOpenApiAndOperationalHealthWithoutAuthentication() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.title").value("Blockchain EMR API"));
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
     void preservesValidClientRequestId() throws Exception {
         mockMvc.perform(get("/health").header("X-Request-Id", "frontend-request-123"))
                 .andExpect(status().isOk())

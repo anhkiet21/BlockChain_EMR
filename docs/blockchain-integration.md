@@ -15,4 +15,5 @@ POST /api/blockchain/events/sync                         ADMIN
 Wallet query parameters must belong to the authenticated account, except for an
 administrator performing reconciliation. The Java wrapper is generated from the
 compiled `MedicalRecordRegistry.sol` ABI and lives under
-`integration/blockchain/generated`.
+`integration/blockchain/generated`. Runtime code is grouped under `api`,
+`application`, `domain`, and `infrastructure`.

@@ -1,4 +1,4 @@
-package com.blockchain.emr.integration.storage;
+package com.blockchain.emr.integration.storage.domain;
 
 public class StorageException extends RuntimeException {
 

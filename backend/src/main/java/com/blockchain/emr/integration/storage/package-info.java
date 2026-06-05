@@ -1,5 +1,4 @@
 /**
- * IPFS and optional Pinata storage adapters.
+ * Storage ports and IPFS, Pinata, or in-memory adapters.
  */
 package com.blockchain.emr.integration.storage;
-

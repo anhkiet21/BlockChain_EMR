@@ -1,4 +1,4 @@
-package com.blockchain.emr.integration.storage;
+package com.blockchain.emr.integration.storage.domain;
 
 public interface StorageService {
     StoredObject store(byte[] content, String filename);

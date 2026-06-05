@@ -1,4 +1,4 @@
-package com.blockchain.emr.integration.blockchain;
+package com.blockchain.emr.integration.blockchain.api;
 
 import java.math.BigInteger;
 
@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.blockchain.emr.auth.security.AuthenticatedUser;
 import com.blockchain.emr.common.api.ApiResponse;
+import com.blockchain.emr.integration.blockchain.application.BlockchainEventSyncService;
+import com.blockchain.emr.integration.blockchain.application.BlockchainQueryService;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 
 @RestController
 @RequestMapping("/blockchain")

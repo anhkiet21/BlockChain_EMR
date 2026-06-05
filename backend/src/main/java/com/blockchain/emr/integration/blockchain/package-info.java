@@ -1,5 +1,4 @@
 /**
- * Web3j adapters and generated smart contract wrappers.
+ * Blockchain integration split into API, application, domain, infrastructure, and generated wrappers.
  */
 package com.blockchain.emr.integration.blockchain;
-

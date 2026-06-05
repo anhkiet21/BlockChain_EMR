@@ -24,4 +24,17 @@ public class AccessGrant {
     public AccessGrant(PatientProfile patient, DoctorProfile doctor) {
         patientProfile = patient; doctorProfile = doctor; grantedAt = Instant.now(); updatedAt = grantedAt;
     }
+
+    public void grant() {
+        Instant now = Instant.now();
+        grantedAt = now;
+        revokedAt = null;
+        updatedAt = now;
+    }
+
+    public void revoke() {
+        Instant now = Instant.now();
+        revokedAt = now;
+        updatedAt = now;
+    }
 }

@@ -22,7 +22,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.blockchain.emr.integration.storage.StorageService;
+import com.blockchain.emr.integration.storage.domain.StorageService;
 import com.blockchain.emr.medicalrecord.domain.MedicalFile;
 import com.blockchain.emr.medicalrecord.infrastructure.MedicalFileRepository;
 import com.fasterxml.jackson.databind.JsonNode;

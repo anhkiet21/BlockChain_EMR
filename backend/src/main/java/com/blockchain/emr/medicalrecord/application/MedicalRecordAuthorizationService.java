@@ -9,7 +9,7 @@ import com.blockchain.emr.accesscontrol.AccessGrantRepository;
 import com.blockchain.emr.auth.domain.WalletAddress;
 import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
 import com.blockchain.emr.doctor.domain.DoctorProfile;
-import com.blockchain.emr.integration.blockchain.BlockchainService;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 import com.blockchain.emr.patient.domain.PatientProfile;
 
 @Service

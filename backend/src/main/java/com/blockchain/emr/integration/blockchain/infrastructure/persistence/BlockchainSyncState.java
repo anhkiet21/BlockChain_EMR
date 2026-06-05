@@ -1,4 +1,4 @@
-package com.blockchain.emr.integration.blockchain;
+package com.blockchain.emr.integration.blockchain.infrastructure.persistence;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -16,18 +16,18 @@ import lombok.NoArgsConstructor;
 @Table(name = "blockchain_sync_states")
 @Getter
 @NoArgsConstructor
-class BlockchainSyncState {
+public class BlockchainSyncState {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
     @Column(name = "contract_address", nullable = false, unique = true, length = 42) private String contractAddress;
     @Column(name = "last_synced_block", nullable = false, precision = 65) private BigInteger lastSyncedBlock;
     @Column(name = "updated_at", nullable = false) private Instant updatedAt;
 
-    BlockchainSyncState(String contractAddress, BigInteger lastSyncedBlock) {
+    public BlockchainSyncState(String contractAddress, BigInteger lastSyncedBlock) {
         this.contractAddress = contractAddress;
         advanceTo(lastSyncedBlock);
     }
 
-    void advanceTo(BigInteger block) {
+    public void advanceTo(BigInteger block) {
         this.lastSyncedBlock = block;
         this.updatedAt = Instant.now();
     }

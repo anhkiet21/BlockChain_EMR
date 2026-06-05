@@ -1,4 +1,4 @@
-package com.blockchain.emr.integration.blockchain;
+package com.blockchain.emr.integration.blockchain.infrastructure.config;
 
 import java.time.Duration;
 

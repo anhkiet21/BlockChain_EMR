@@ -1,4 +1,4 @@
-package com.blockchain.emr.integration.blockchain;
+package com.blockchain.emr.integration.blockchain.domain;
 
 import com.blockchain.emr.common.exception.ApplicationException;
 import com.blockchain.emr.common.exception.ErrorCode;
