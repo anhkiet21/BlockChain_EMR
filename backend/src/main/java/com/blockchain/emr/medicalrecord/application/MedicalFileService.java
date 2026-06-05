@@ -67,11 +67,15 @@ public class MedicalFileService {
     @Transactional
     @PreAuthorize("hasRole('PATIENT') and #userId == authentication.principal.id")
     public MedicalFileResponse uploadMine(Long userId, MultipartFile file) {
-        validate(file);
         PatientProfile patient = patientProfileRepository.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found"));
         User uploader = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return toResponse(storeForPatient(patient, uploader, file));
+    }
+
+    public MedicalFile storeForPatient(PatientProfile patient, User uploader, MultipartFile file) {
+        validate(file);
         byte[] plaintext = read(file);
         validateContent(file.getContentType(), plaintext);
         String contentHash = sha256(plaintext);
@@ -88,7 +92,7 @@ public class MedicalFileService {
                 encrypted.iv(),
                 FileEncryptionService.ALGORITHM,
                 storageService.provider());
-        return toResponse(medicalFileRepository.save(medicalFile));
+        return medicalFileRepository.save(medicalFile);
     }
 
     @Transactional(readOnly = true)
@@ -111,6 +115,10 @@ public class MedicalFileService {
         if (!file.getPatientProfile().getUser().getId().equals(userId)) {
             throw new AccessDeniedException("Medical file does not belong to current patient");
         }
+        return download(file);
+    }
+
+    public DownloadedMedicalFile download(MedicalFile file) {
         byte[] plaintext = encryptionService.decrypt(storageService.retrieve(file.getCid()), file.getEncryptionIv());
         if (!sha256(plaintext).equals(file.getContentHash())) {
             throw new IllegalStateException("Medical file integrity check failed");
@@ -188,7 +196,7 @@ public class MedicalFileService {
         }
     }
 
-    private MedicalFileResponse toResponse(MedicalFile file) {
+    public MedicalFileResponse toResponse(MedicalFile file) {
         return new MedicalFileResponse(
                 file.getId(),
                 file.getOriginalFilename(),
