@@ -14,6 +14,8 @@ public enum ErrorCode {
     ROLE_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "Vai trò đăng ký không hợp lệ"),
     WALLET_ALREADY_LINKED(HttpStatus.CONFLICT, "Ví đã được liên kết với tài khoản khác"),
     WALLET_VERIFICATION_FAILED(HttpStatus.BAD_REQUEST, "Không thể xác minh chữ ký ví"),
+    BLOCKCHAIN_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Không thể kết nối blockchain RPC"),
+    BLOCKCHAIN_READ_FAILED(HttpStatus.BAD_GATEWAY, "Không thể xác minh dữ liệu blockchain"),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "Không tìm thấy tài nguyên"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Đã xảy ra lỗi hệ thống");
 

@@ -159,6 +159,34 @@ tra quyền đối tượng. Người dùng thường chỉ đọc/sửa hồ s�
 Tìm kiếm bệnh nhân bắt buộc từ khóa tối thiểu 3 ký tự, trả tối đa 20 kết quả mỗi
 trang và không trả email, số điện thoại, địa chỉ, người liên hệ hoặc nhóm máu.
 
+## Lưu trữ file bệnh án
+
+Giai đoạn 4 cung cấp API file riêng cho bệnh nhân:
+
+```text
+POST /api/medical-files/me
+GET  /api/medical-files/me
+GET  /api/medical-files/{fileId}/content
+```
+
+Upload sử dụng `multipart/form-data` với part tên `file`. Backend chỉ chấp nhận
+PDF, JSON, JPEG và PNG, tối đa 20 MB theo mặc định. File được mã hóa AES-256-GCM
+trước khi tải lên IPFS; database chỉ lưu CID, metadata, IV và SHA-256 hash.
+
+API không trả CID hoặc IV cho client. Khi tải xuống, backend kiểm tra ownership từ
+JWT, lấy ciphertext từ IPFS, giải mã và kiểm tra hash trước khi trả file.
+
+Storage provider được chọn bằng `STORAGE_PROVIDER=kubo` hoặc `pinata`. Production
+phải cung cấp `STORAGE_ENCRYPTION_KEY` là khóa 32 byte được mã hóa Base64.
+
+Tạo khóa development:
+
+```powershell
+$bytes = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+[Convert]::ToBase64String($bytes)
+```
+
 ## Authorization và chống IDOR
 
 - Chỉ `/health`, `/auth/register`, `/auth/login`, `/auth/refresh` và CORS preflight

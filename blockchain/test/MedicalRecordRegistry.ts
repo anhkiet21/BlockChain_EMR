@@ -12,5 +12,18 @@ describe("MedicalRecordRegistry", function () {
     const record = await registry.connect(doctor).getRecord(0);
     expect(record.cid).to.equal("bafy-test-cid");
   });
-});
 
+  it("revokes access and rejects unauthorized record reads", async function () {
+    const [patient, doctor, stranger] = await ethers.getSigners();
+    const registry = await ethers.deployContract("MedicalRecordRegistry");
+
+    await registry.connect(patient).setAccess(doctor.address, true);
+    await registry.connect(doctor).createRecord(patient.address, "bafy-encrypted-cid");
+    await expect(registry.connect(stranger).getRecord(0)).to.be.revertedWith("Access denied");
+
+    await expect(registry.connect(patient).setAccess(doctor.address, false))
+      .to.emit(registry, "AccessUpdated")
+      .withArgs(patient.address, doctor.address, false);
+    await expect(registry.connect(doctor).getRecord(0)).to.be.revertedWith("Access denied");
+  });
+});

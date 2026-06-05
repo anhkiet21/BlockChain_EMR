@@ -49,6 +49,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/departments").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/departments/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/departments").authenticated()
+                        .requestMatchers("/medical-files/**").hasRole("PATIENT")
+                        .requestMatchers(HttpMethod.POST, "/blockchain/events/sync").hasRole("ADMIN")
+                        .requestMatchers("/blockchain/**").authenticated()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
