@@ -2,6 +2,20 @@ export type Page<T> = {
   content: T[]; page: number; size: number; totalElements: number; totalPages: number; first: boolean; last: boolean;
 };
 
+export type Department = {
+  id: number; code: string; name: string; description?: string; active: boolean;
+};
+
+export type DoctorProfile = {
+  id: number; userId: number; doctorCode: string; email: string; fullName: string; licenseNumber: string;
+  specialization: string; department?: Department; phone?: string; biography?: string; verified: boolean;
+};
+
+export type PatientProfile = {
+  id: number; userId: number; patientCode: string; email: string; fullName: string; dateOfBirth?: string;
+  gender?: string; phone?: string; address?: string; emergencyContactName?: string; emergencyContactPhone?: string; bloodType?: string;
+};
+
 export type PatientSummary = {
   id: number; patientCode: string; fullName: string; dateOfBirth?: string; gender?: string;
 };
@@ -24,4 +38,15 @@ export type MedicalFile = {
 export type MedicalRecord = {
   id: number; patientProfileId: number; authorDoctorProfileId: number; title: string; recordType: string;
   onChainRecordId: string; createdAt: string; files: MedicalFile[];
+};
+
+export type AccessCheck = { patientWallet: string; granteeWallet: string; granted: boolean };
+
+export type TransactionState = {
+  transactionHash: string; found: boolean; success: boolean; blockNumber?: string; confirmations?: string;
+};
+
+export type OnChainRecord = {
+  recordId: string; cid: string; contentHash?: string; patientWallet: string; authorWallet: string;
+  createdAt?: string; previousRecordId?: string; exists: boolean;
 };

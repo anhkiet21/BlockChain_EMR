@@ -20,11 +20,11 @@ declare global {
 }
 
 export function shortAddress(address?: string) {
-  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Chưa kết nối";
+  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Chua ket noi";
 }
 
 export async function connectWallet() {
-  if (!window.ethereum) throw new Error("Chưa cài MetaMask");
+  if (!window.ethereum) throw new Error("Chua cai MetaMask tren browser nay.");
   await window.ethereum.request({ method: "eth_requestAccounts" });
   const provider = new BrowserProvider(window.ethereum);
   await requireExpectedChain(provider);
@@ -36,7 +36,7 @@ export async function requireExpectedChain(provider: BrowserProvider) {
   const expected = BigInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? "31337");
   const network = await provider.getNetwork();
   if (network.chainId !== expected) {
-    throw new Error(`Sai mạng blockchain. Hãy chuyển MetaMask sang chain ID ${expected}.`);
+    throw new Error(`Sai blockchain network. Hay chuyen MetaMask sang chain ID ${expected}.`);
   }
 }
 
@@ -45,27 +45,27 @@ export async function sendPreparedTransaction(transaction: {
 }) {
   const { provider, signer, address } = await connectWallet();
   const network = await provider.getNetwork();
-  if (network.chainId !== BigInt(transaction.chainId)) throw new Error("Chain của giao dịch chuẩn bị không khớp MetaMask");
+  if (network.chainId !== BigInt(transaction.chainId)) throw new Error("Chain cua transaction khong khop MetaMask.");
   if (address.toLowerCase() !== transaction.from.toLowerCase()) {
-    throw new Error("Ví MetaMask hiện tại không khớp ví bệnh nhân đã xác minh");
+    throw new Error("Vi MetaMask hien tai khong khop vi benh nhan trong transaction.");
   }
   const receipt = await signer.sendTransaction({
     to: transaction.to,
     data: transaction.data,
     value: BigInt(transaction.value),
   }).then((tx) => tx.wait());
-  if (!receipt) throw new Error("Không nhận được transaction receipt");
+  if (!receipt) throw new Error("Khong nhan duoc transaction receipt.");
   return receipt;
 }
 
 export async function createOnChainRecord(patientWallet: string, doctorWallet: string, cid: string, contentHash: string) {
   const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
   if (!contractAddress || !ethers.isAddress(contractAddress)) {
-    throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS chưa được cấu hình");
+    throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS chua duoc cau hinh.");
   }
   const { signer, address } = await connectWallet();
   if (address.toLowerCase() !== doctorWallet.toLowerCase()) {
-    throw new Error("Ví MetaMask hiện tại không khớp ví bác sĩ đã xác minh");
+    throw new Error("Vi MetaMask hien tai khong khop vi bac si da xac minh.");
   }
   const contract = new Contract(contractAddress, registryAbi, signer);
   const hash = contentHash.startsWith("0x") ? contentHash : `0x${contentHash}`;
@@ -79,5 +79,5 @@ export async function createOnChainRecord(patientWallet: string, doctorWallet: s
       // Ignore logs emitted by other contracts.
     }
   }
-  throw new Error("Transaction thành công nhưng không tìm thấy event RecordCreated");
+  throw new Error("Transaction thanh cong nhung khong tim thay event RecordCreated.");
 }

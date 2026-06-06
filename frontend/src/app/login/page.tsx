@@ -25,7 +25,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       setSession(session);
-      location.href = session.user.roles.includes("PATIENT") ? "/patient/access" : "/doctor/records";
+      location.href = "/dashboard";
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 403) {
         setMessage("Dang nhap bi tu choi (403). Kiem tra tai khoan hoac doi 1 phut neu vua thu qua nhieu lan.");
@@ -85,6 +85,7 @@ export default function LoginPage() {
         <button className="btn-primary" disabled={busy}>
           {busy ? "Dang dang nhap..." : "Dang nhap"}
         </button>
+        <a className="btn-secondary" href="/register">Tao tai khoan Patient/Doctor moi</a>
         <p className="text-xs text-slate-500">Token chi duoc giu trong sessionStorage va bi xoa khi dong tab.</p>
       </form>
     </section>

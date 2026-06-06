@@ -14,15 +14,23 @@ export function SessionBar() {
   }, []);
 
   async function logout() {
-    if (session) await apiFetch("/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken: session.refreshToken }) }).catch(() => null);
+    if (session) {
+      await apiFetch("/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken: session.refreshToken }) }).catch(() => null);
+    }
     setSession(null);
     location.href = "/login";
   }
 
   return session ? (
-    <div className="flex items-center gap-3 text-sm">
-      <span className="hidden text-slate-600 sm:inline">{session.user.fullName}</span>
-      <button className="btn-secondary" onClick={logout}>Đăng xuất</button>
+    <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+      <Link className="btn-secondary" href="/dashboard">{session.user.roles.join(", ")}</Link>
+      <span className="hidden text-slate-600 lg:inline">{session.user.fullName}</span>
+      <button className="btn-secondary" onClick={logout}>Logout</button>
     </div>
-  ) : <Link className="btn-primary" href="/login">Đăng nhập</Link>;
+  ) : (
+    <div className="flex gap-2">
+      <Link className="btn-secondary" href="/register">Register</Link>
+      <Link className="btn-primary" href="/login">Login</Link>
+    </div>
+  );
 }
