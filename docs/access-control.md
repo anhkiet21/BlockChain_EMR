@@ -16,7 +16,7 @@ profile ID from the client.
    `GET /access-control/history`.
 
 The verify endpoint checks the mined transaction status, signer, contract
-address, calldata, and matching `AccessUpdated` event before updating SQL. A
+address, calldata, and matching `AccessGranted` or `AccessRevoked` event before updating SQL. A
 transaction hash can be synchronized only once; repeating the same request is
 idempotent.
 

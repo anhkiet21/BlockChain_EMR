@@ -25,5 +25,6 @@ class KuboStorageSmokeTests {
 
         assertThat(stored.cid()).isNotBlank();
         assertThat(storage.retrieve(stored.cid())).isEqualTo(content);
+        storage.delete(stored.cid());
     }
 }

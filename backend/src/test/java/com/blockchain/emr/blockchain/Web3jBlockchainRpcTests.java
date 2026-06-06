@@ -24,9 +24,14 @@ class Web3jBlockchainRpcTests {
         String patient = System.getenv("SMOKE_PATIENT_WALLET");
         String doctor = System.getenv("SMOKE_DOCTOR_WALLET");
         String transaction = System.getenv("SMOKE_TRANSACTION_HASH");
+        String accessTransaction = System.getenv("SMOKE_ACCESS_TRANSACTION_HASH");
 
         assertThat(blockchainService.hasAccess(patient, doctor)).isTrue();
-        assertThat(blockchainService.getRecord(BigInteger.ZERO, doctor).cid()).isEqualTo("bafy-backend-smoke-cid");
+        var record = blockchainService.getRecord(BigInteger.ZERO, doctor);
+        assertThat(record.cid()).isEqualTo("bafy-backend-smoke-cid");
+        assertThat(record.contentHash()).matches("^0x[0-9a-f]{64}$");
+        assertThat(record.latestVersion()).isTrue();
+        assertThat(blockchainService.getAccessTransaction(accessTransaction).accessEvent().granted()).isTrue();
         assertThat(blockchainService.getTransactionState(transaction).status())
                 .isEqualTo(BlockchainService.TransactionState.Status.SUCCESS);
         BigInteger latest = blockchainService.latestBlock();

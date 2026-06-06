@@ -7,11 +7,13 @@ import java.util.Collections;
 import org.web3j.abi.TypeReference;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Bool;
+import org.web3j.abi.datatypes.generated.Bytes32;
 import org.web3j.abi.datatypes.DynamicStruct;
 import org.web3j.abi.datatypes.Event;
 import org.web3j.abi.datatypes.Function;
 import org.web3j.abi.datatypes.Utf8String;
 import org.web3j.abi.datatypes.generated.Uint256;
+import org.web3j.abi.datatypes.generated.Uint64;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.RemoteFunctionCall;
 import org.web3j.tx.Contract;
@@ -23,18 +25,24 @@ public class MedicalRecordRegistry extends Contract {
 
     public static final String BINARY = "";
 
-    public static final Event ACCESSUPDATED_EVENT = new Event("AccessUpdated",
+    public static final Event ACCESSGRANTED_EVENT = new Event("AccessGranted",
             Arrays.asList(
                     new TypeReference<Address>(true) {},
+                    new TypeReference<Address>(true) {}));
+
+    public static final Event ACCESSREVOKED_EVENT = new Event("AccessRevoked",
+            Arrays.asList(
                     new TypeReference<Address>(true) {},
-                    new TypeReference<Bool>() {}));
+                    new TypeReference<Address>(true) {}));
 
     public static final Event RECORDCREATED_EVENT = new Event("RecordCreated",
             Arrays.asList(
                     new TypeReference<Uint256>(true) {},
                     new TypeReference<Address>(true) {},
                     new TypeReference<Address>(true) {},
-                    new TypeReference<Utf8String>() {}));
+                    new TypeReference<Utf8String>() {},
+                    new TypeReference<Bytes32>() {},
+                    new TypeReference<Uint256>() {}));
 
     protected MedicalRecordRegistry(
             String contractAddress,
@@ -60,6 +68,14 @@ public class MedicalRecordRegistry extends Contract {
         return executeRemoteCallSingleValueReturn(function, Record.class);
     }
 
+    public RemoteFunctionCall<Boolean> isLatestVersion(BigInteger recordId) {
+        Function function = new Function(
+                "isLatestVersion",
+                Collections.singletonList(new Uint256(recordId)),
+                Collections.singletonList(new TypeReference<Bool>() {}));
+        return executeRemoteCallSingleValueReturn(function, Boolean.class);
+    }
+
     public static MedicalRecordRegistry load(
             String contractAddress,
             Web3j web3j,
@@ -70,24 +86,33 @@ public class MedicalRecordRegistry extends Contract {
 
     public static class Record extends DynamicStruct {
         public final String cid;
+        public final byte[] contentHash;
         public final String patient;
         public final String author;
         public final BigInteger createdAt;
+        public final BigInteger previousRecordId;
 
-        public Record(Utf8String cid, Address patient, Address author, Uint256 createdAt) {
-            super(cid, patient, author, createdAt);
+        public Record(Utf8String cid, Bytes32 contentHash, Address patient, Address author,
+                Uint64 createdAt, Uint256 previousRecordId) {
+            super(cid, contentHash, patient, author, createdAt, previousRecordId);
             this.cid = cid.getValue();
+            this.contentHash = contentHash.getValue();
             this.patient = patient.getValue();
             this.author = author.getValue();
             this.createdAt = createdAt.getValue();
+            this.previousRecordId = previousRecordId.getValue();
         }
 
-        public Record(String cid, String patient, String author, BigInteger createdAt) {
-            super(new Utf8String(cid), new Address(160, patient), new Address(160, author), new Uint256(createdAt));
+        public Record(String cid, byte[] contentHash, String patient, String author,
+                BigInteger createdAt, BigInteger previousRecordId) {
+            super(new Utf8String(cid), new Bytes32(contentHash), new Address(160, patient),
+                    new Address(160, author), new Uint64(createdAt), new Uint256(previousRecordId));
             this.cid = cid;
+            this.contentHash = contentHash;
             this.patient = patient;
             this.author = author;
             this.createdAt = createdAt;
+            this.previousRecordId = previousRecordId;
         }
     }
 }

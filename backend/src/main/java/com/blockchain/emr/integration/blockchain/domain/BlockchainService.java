@@ -15,7 +15,14 @@ public interface BlockchainService {
     List<AccessEvent> readAccessEvents(BigInteger fromBlock, BigInteger toBlock);
     List<RecordEvent> readRecordEvents(BigInteger fromBlock, BigInteger toBlock);
 
-    record OnChainRecord(BigInteger recordId, String cid, String patientWallet, String authorWallet, Instant createdAt) {}
+    record OnChainRecord(
+            BigInteger recordId, String cid, String contentHash, String patientWallet, String authorWallet,
+            Instant createdAt, BigInteger previousRecordId, boolean latestVersion) {
+        public OnChainRecord(
+                BigInteger recordId, String cid, String patientWallet, String authorWallet, Instant createdAt) {
+            this(recordId, cid, null, patientWallet, authorWallet, createdAt, null, true);
+        }
+    }
     record PreparedTransaction(String from, String to, String data, BigInteger chainId, String value) {}
     record AccessTransaction(
             String transactionHash, String from, String to, String input, TransactionState.Status status,

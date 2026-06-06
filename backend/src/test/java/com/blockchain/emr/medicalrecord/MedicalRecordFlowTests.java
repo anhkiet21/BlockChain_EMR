@@ -61,8 +61,10 @@ class MedicalRecordFlowTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.cid").isNotEmpty()).andReturn();
         long fileId = read(upload).at("/data/fileId").asLong();
         String cid = read(upload).at("/data/cid").asText();
+        String contentHash = read(upload).at("/data/contentHash").asText();
         when(blockchain.getRecord(BigInteger.ZERO, setup.doctorWallet())).thenReturn(new BlockchainService.OnChainRecord(
-                BigInteger.ZERO, cid, setup.patientWallet(), setup.doctorWallet(), Instant.now()));
+                BigInteger.ZERO, cid, "0x" + contentHash, setup.patientWallet(), setup.doctorWallet(), Instant.now(),
+                BigInteger.valueOf(-1), true));
 
         MvcResult created = mvc.perform(post("/medical-records").header("Authorization", bearer(setup.doctorToken()))
                         .contentType(MediaType.APPLICATION_JSON).content("""
@@ -116,6 +118,31 @@ class MedicalRecordFlowTests {
         mvc.perform(get("/medical-records")).andExpect(status().isUnauthorized());
         mvc.perform(get("/medical-records").header("Authorization", bearer(setup.patientToken())))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void rejectsRecordWhenOnChainContentHashDoesNotMatchUploadedFile() throws Exception {
+        Setup setup = setup(true);
+        when(blockchain.hasAccess(setup.patientWallet(), setup.doctorWallet())).thenReturn(true);
+
+        MvcResult upload = mvc.perform(multipart("/medical-records/patients/{id}/files", setup.patientId())
+                        .file(new MockMultipartFile("file", "diagnosis.json", MediaType.APPLICATION_JSON_VALUE,
+                                "{\"diagnosis\":\"encrypted\"}".getBytes(StandardCharsets.UTF_8)))
+                        .header("Authorization", bearer(setup.doctorToken()))
+                        .param("patientWallet", setup.patientWallet()).param("doctorWallet", setup.doctorWallet()))
+                .andExpect(status().isOk()).andReturn();
+        long fileId = read(upload).at("/data/fileId").asLong();
+        String cid = read(upload).at("/data/cid").asText();
+        when(blockchain.getRecord(BigInteger.ZERO, setup.doctorWallet())).thenReturn(new BlockchainService.OnChainRecord(
+                BigInteger.ZERO, cid, "0x" + "00".repeat(32), setup.patientWallet(), setup.doctorWallet(), Instant.now(),
+                BigInteger.valueOf(-1), true));
+
+        mvc.perform(post("/medical-records").header("Authorization", bearer(setup.doctorToken()))
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"patientProfileId":%d,"title":"Visit","recordType":"DIAGNOSIS","medicalFileId":%d,
+                                 "onChainRecordId":0,"patientWallet":"%s","doctorWallet":"%s"}
+                                """.formatted(setup.patientId(), fileId, setup.patientWallet(), setup.doctorWallet())))
+                .andExpect(status().isConflict());
     }
 
     private Setup setup(boolean grant) throws Exception {

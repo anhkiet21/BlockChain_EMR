@@ -70,6 +70,7 @@ public class MedicalRecordService {
         }
         BlockchainService.OnChainRecord onChain = blockchain.getRecord(request.onChainRecordId(), request.doctorWallet());
         if (!onChain.cid().equals(file.getCid())
+                || !normalizeHash(onChain.contentHash()).equals(normalizeHash(file.getContentHash()))
                 || !onChain.patientWallet().equals(normalize(request.patientWallet()))
                 || !onChain.authorWallet().equals(normalize(request.doctorWallet()))) {
             throw new ApplicationException(ErrorCode.CONFLICT, "On-chain record does not match uploaded file and wallets");
@@ -88,7 +89,7 @@ public class MedicalRecordService {
             String doctorWallet, MultipartFile multipart) {
         MedicalRecord record = find(recordId);
         Context context = context(userId, record.getPatientProfile().getId(), patientWallet, doctorWallet);
-        verifyOnChainRecord(record, doctorWallet);
+        verifyOnChainRecord(record, patientWallet, doctorWallet);
         MedicalFile file = fileService.storeForPatient(context.patient(), context.actor(), multipart);
         recordFiles.save(new MedicalRecordFile(record, file));
         logs.save(new RecordAccessLog(record, file, context.actor(), "EDIT"));
@@ -111,7 +112,7 @@ public class MedicalRecordService {
     public MedicalRecordResponse detail(Long userId, Long recordId, String patientWallet, String doctorWallet) {
         MedicalRecord record = find(recordId);
         Context context = context(userId, record.getPatientProfile().getId(), patientWallet, doctorWallet);
-        verifyOnChainRecord(record, doctorWallet);
+        verifyOnChainRecord(record, patientWallet, doctorWallet);
         logs.save(new RecordAccessLog(record, null, context.actor(), "VIEW"));
         return response(record);
     }
@@ -122,7 +123,7 @@ public class MedicalRecordService {
             String patientWallet, String doctorWallet) {
         MedicalRecord record = find(recordId);
         Context context = context(userId, record.getPatientProfile().getId(), patientWallet, doctorWallet);
-        verifyOnChainRecord(record, doctorWallet);
+        verifyOnChainRecord(record, patientWallet, doctorWallet);
         MedicalFile file = recordFiles.findByMedicalRecordIdAndMedicalFileId(recordId, fileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Record file not found")).getMedicalFile();
         logs.save(new RecordAccessLog(record, file, context.actor(), "DOWNLOAD"));
@@ -137,9 +138,13 @@ public class MedicalRecordService {
         return new Context(actor, doctor, patient);
     }
 
-    private void verifyOnChainRecord(MedicalRecord record, String doctorWallet) {
+    private void verifyOnChainRecord(MedicalRecord record, String patientWallet, String doctorWallet) {
         var onChain = blockchain.getRecord(record.getOnChainRecordId(), doctorWallet);
-        if (!record.getCid().equals(onChain.cid())) throw new AccessDeniedException("On-chain CID verification failed");
+        if (!record.getCid().equals(onChain.cid())
+                || !normalizeHash(record.getContentHash()).equals(normalizeHash(onChain.contentHash()))
+                || !normalize(patientWallet).equals(onChain.patientWallet())) {
+            throw new AccessDeniedException("On-chain medical record verification failed");
+        }
     }
 
     private MedicalRecord find(Long id) {
@@ -155,5 +160,9 @@ public class MedicalRecordService {
     }
 
     private String normalize(String value) { return value.toLowerCase(Locale.ROOT); }
+    private String normalizeHash(String value) {
+        String normalized = value == null ? "" : value.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("0x") ? normalized.substring(2) : normalized;
+    }
     private record Context(User actor, DoctorProfile doctor, PatientProfile patient) {}
 }

@@ -76,6 +76,15 @@ public class PinataStorageAdapter implements StorageService {
     }
 
     @Override
+    public void delete(String cid) {
+        try {
+            pinataClient.delete().uri("/pinning/unpin/{cid}", cid).retrieve().toBodilessEntity();
+        } catch (Exception exception) {
+            throw new StorageException("Could not unpin encrypted file from Pinata", exception);
+        }
+    }
+
+    @Override
     public String provider() {
         return "PINATA";
     }

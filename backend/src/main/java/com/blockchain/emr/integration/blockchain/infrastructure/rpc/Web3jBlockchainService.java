@@ -14,7 +14,6 @@ import org.web3j.abi.EventEncoder;
 import org.web3j.abi.FunctionEncoder;
 import org.web3j.abi.FunctionReturnDecoder;
 import org.web3j.abi.datatypes.Address;
-import org.web3j.abi.datatypes.Bool;
 import org.web3j.abi.datatypes.Function;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
@@ -54,7 +53,8 @@ public class Web3jBlockchainService implements BlockchainService {
     public PreparedTransaction prepareAccessTransaction(String patientWallet, String granteeWallet, boolean granted) {
         validateAddress(patientWallet);
         validateAddress(granteeWallet);
-        Function function = new Function("setAccess", List.of(new Address(granteeWallet), new Bool(granted)), List.of());
+        Function function = new Function(granted ? "grantAccess" : "revokeAccess",
+                List.of(new Address(granteeWallet)), List.of());
         BigInteger chainId = execute(() -> web3j.ethChainId().send().getChainId());
         return new PreparedTransaction(normalize(patientWallet), contractAddress,
                 FunctionEncoder.encode(function), chainId, "0x0");
@@ -74,8 +74,7 @@ public class Web3jBlockchainService implements BlockchainService {
         TransactionReceipt value = receipt.get();
         AccessEvent event = value.getLogs().stream()
                 .filter(log -> normalize(log.getAddress()).equals(contractAddress))
-                .filter(log -> !log.getTopics().isEmpty()
-                        && log.getTopics().get(0).equals(EventEncoder.encode(MedicalRecordRegistry.ACCESSUPDATED_EVENT)))
+                .filter(this::isAccessEvent)
                 .findFirst().map(this::accessEvent).orElse(null);
         return new AccessTransaction(transactionHash, normalize(transaction.getFrom()), normalize(transaction.getTo()),
                 transaction.getInput(), value.isStatusOK() ? TransactionState.Status.SUCCESS : TransactionState.Status.FAILED,
@@ -86,9 +85,11 @@ public class Web3jBlockchainService implements BlockchainService {
     public OnChainRecord getRecord(BigInteger recordId, String callerWallet) {
         validateAddress(callerWallet);
         var record = execute(() -> contract(callerWallet).getRecord(recordId).send());
+        boolean latest = execute(() -> contract(callerWallet).isLatestVersion(recordId).send());
         return new OnChainRecord(
-                recordId, record.cid, normalize(record.patient), normalize(record.author),
-                Instant.ofEpochSecond(record.createdAt.longValueExact()));
+                recordId, record.cid, Numeric.toHexString(record.contentHash), normalize(record.patient),
+                normalize(record.author), Instant.ofEpochSecond(record.createdAt.longValueExact()),
+                record.previousRecordId, latest);
     }
 
     @Override
@@ -115,8 +116,13 @@ public class Web3jBlockchainService implements BlockchainService {
 
     @Override
     public List<AccessEvent> readAccessEvents(BigInteger fromBlock, BigInteger toBlock) {
-        return logs(fromBlock, toBlock, MedicalRecordRegistry.ACCESSUPDATED_EVENT).stream()
-                .map(this::accessEvent).toList();
+        var granted = logs(fromBlock, toBlock, MedicalRecordRegistry.ACCESSGRANTED_EVENT).stream()
+                .map(this::accessEvent);
+        var revoked = logs(fromBlock, toBlock, MedicalRecordRegistry.ACCESSREVOKED_EVENT).stream()
+                .map(this::accessEvent);
+        return java.util.stream.Stream.concat(granted, revoked)
+                .sorted(java.util.Comparator.comparing(AccessEvent::blockNumber).thenComparingLong(AccessEvent::logIndex))
+                .toList();
     }
 
     @Override
@@ -149,12 +155,18 @@ public class Web3jBlockchainService implements BlockchainService {
     }
 
     private AccessEvent accessEvent(Log log) {
-        var data = FunctionReturnDecoder.decode(
-                log.getData(), MedicalRecordRegistry.ACCESSUPDATED_EVENT.getNonIndexedParameters());
+        boolean granted = log.getTopics().get(0).equals(EventEncoder.encode(MedicalRecordRegistry.ACCESSGRANTED_EVENT));
         return new AccessEvent(
                 log.getTransactionHash(), log.getLogIndex().longValueExact(), log.getBlockNumber(),
                 decodeAddress(log.getTopics().get(1)), decodeAddress(log.getTopics().get(2)),
-                (Boolean) data.get(0).getValue(), blockTime(log.getBlockNumber()));
+                granted, blockTime(log.getBlockNumber()));
+    }
+
+    private boolean isAccessEvent(Log log) {
+        if (log.getTopics().isEmpty()) return false;
+        String signature = log.getTopics().get(0);
+        return signature.equals(EventEncoder.encode(MedicalRecordRegistry.ACCESSGRANTED_EVENT))
+                || signature.equals(EventEncoder.encode(MedicalRecordRegistry.ACCESSREVOKED_EVENT));
     }
 
     private MedicalRecordRegistry contract(String caller) {

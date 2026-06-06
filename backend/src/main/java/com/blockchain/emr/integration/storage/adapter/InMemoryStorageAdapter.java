@@ -34,6 +34,11 @@ public class InMemoryStorageAdapter implements StorageService {
     }
 
     @Override
+    public void delete(String cid) {
+        objects.remove(cid);
+    }
+
+    @Override
     public String provider() {
         return "MEMORY";
     }

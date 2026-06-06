@@ -1,0 +1,28 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { apiFetch, getSession, setSession, Session } from "@/lib/api/client";
+
+export function SessionBar() {
+  const [session, setCurrent] = useState<Session | null>(null);
+  useEffect(() => {
+    const sync = () => setCurrent(getSession());
+    sync();
+    window.addEventListener("emr-session-change", sync);
+    return () => window.removeEventListener("emr-session-change", sync);
+  }, []);
+
+  async function logout() {
+    if (session) await apiFetch("/auth/logout", { method: "POST", body: JSON.stringify({ refreshToken: session.refreshToken }) }).catch(() => null);
+    setSession(null);
+    location.href = "/login";
+  }
+
+  return session ? (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="hidden text-slate-600 sm:inline">{session.user.fullName}</span>
+      <button className="btn-secondary" onClick={logout}>Đăng xuất</button>
+    </div>
+  ) : <Link className="btn-primary" href="/login">Đăng nhập</Link>;
+}

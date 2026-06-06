@@ -8,12 +8,12 @@ addresses must be linked to the corresponding authenticated users.
 
 1. The verified doctor uploads an encrypted file for a patient:
    `POST /api/medical-records/patients/{patientId}/files`.
-2. The frontend uses the returned CID in a MetaMask-signed `createRecord`
-   transaction.
+2. The frontend uses the returned CID and SHA-256 content hash in a MetaMask-signed
+   `createRecord(patient, cid, contentHash)` transaction.
 3. After the transaction succeeds, the frontend submits its `onChainRecordId` to
    `POST /api/medical-records`.
-4. The backend verifies the on-chain CID, patient wallet, and author wallet before
-   saving relational metadata.
+4. The backend verifies the on-chain CID, content hash, patient wallet, and author
+   wallet before saving relational metadata.
 
 ## Protected APIs
 

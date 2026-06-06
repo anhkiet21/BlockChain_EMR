@@ -68,6 +68,18 @@ public class KuboStorageAdapter implements StorageService {
     }
 
     @Override
+    public void delete(String cid) {
+        try {
+            restClient.post()
+                    .uri(uriBuilder -> uriBuilder.path("/api/v0/pin/rm").queryParam("arg", cid).build())
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception exception) {
+            throw new StorageException("Could not unpin encrypted file from Kubo", exception);
+        }
+    }
+
+    @Override
     public String provider() {
         return "KUBO";
     }
