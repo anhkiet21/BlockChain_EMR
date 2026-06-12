@@ -43,6 +43,12 @@ public class MedicalRecordController {
         return ApiResponse.success(service.addFile(user.id(), recordId, patientWallet, doctorWallet, file));
     }
 
+    @PostMapping("/{recordId}/corrections")
+    ApiResponse<MedicalRecordResponse> correct(@AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long recordId, @Valid @RequestBody CorrectMedicalRecordRequest request) {
+        return ApiResponse.success(service.correct(user.id(), recordId, request));
+    }
+
     @GetMapping
     ApiResponse<PageResponse<MedicalRecordResponse>> list(@AuthenticationPrincipal AuthenticatedUser user,
             @RequestParam Long patientProfileId, @RequestParam String patientWallet, @RequestParam String doctorWallet,

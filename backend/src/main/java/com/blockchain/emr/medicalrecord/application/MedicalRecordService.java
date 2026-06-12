@@ -98,6 +98,42 @@ public class MedicalRecordService {
 
     @Transactional
     @PreAuthorize("hasRole('DOCTOR') and #userId == authentication.principal.id")
+    public MedicalRecordResponse correct(Long userId, Long recordId, CorrectMedicalRecordRequest request) {
+        MedicalRecord previous = find(recordId);
+        if (previous.getStatus() != MedicalRecordStatus.ACTIVE || previous.getSuccessorRecord() != null) {
+            throw new ApplicationException(ErrorCode.CONFLICT, "Medical record is not the active version");
+        }
+        Context context = context(userId, previous.getPatientProfile().getId(), request.patientWallet(), request.doctorWallet());
+        verifyOnChainRecord(previous, request.patientWallet(), request.doctorWallet());
+        MedicalFile file = files.findById(request.medicalFileId())
+                .orElseThrow(() -> new ResourceNotFoundException("Medical file not found"));
+        if (!file.getPatientProfile().getId().equals(context.patient().getId())) {
+            throw new AccessDeniedException("File does not belong to patient");
+        }
+        BlockchainService.OnChainRecord onChain = blockchain.getRecord(request.onChainRecordId(), request.doctorWallet());
+        if (!onChain.cid().equals(file.getCid())
+                || !normalizeHash(onChain.contentHash()).equals(normalizeHash(file.getContentHash()))
+                || !onChain.patientWallet().equals(normalize(request.patientWallet()))
+                || !onChain.authorWallet().equals(normalize(request.doctorWallet()))
+                || !request.onChainRecordId().equals(onChain.recordId())
+                || !previous.getOnChainRecordId().equals(onChain.previousRecordId())) {
+            throw new ApplicationException(ErrorCode.CONFLICT, "On-chain correction does not match uploaded file and previous record");
+        }
+        String reason = request.correctionReason().trim();
+        MedicalRecord corrected = new MedicalRecord(context.patient(), context.doctor(),
+                request.title().trim(), request.recordType().trim().toUpperCase(Locale.ROOT), file.getCid(),
+                file.getContentHash(), request.onChainRecordId());
+        corrected.linkToPrevious(previous, reason);
+        corrected = records.save(corrected);
+        recordFiles.save(new MedicalRecordFile(corrected, file));
+        previous.markCorrectedBy(corrected, context.doctor(), reason);
+        logs.save(new RecordAccessLog(previous, null, context.actor(), "CORRECT"));
+        logs.save(new RecordAccessLog(corrected, file, context.actor(), "CREATE"));
+        return response(corrected);
+    }
+
+    @Transactional
+    @PreAuthorize("hasRole('DOCTOR') and #userId == authentication.principal.id")
     public PageResponse<MedicalRecordResponse> list(Long userId, Long patientId, String patientWallet,
             String doctorWallet, int page, int size) {
         Context context = context(userId, patientId, patientWallet, doctorWallet);
@@ -156,7 +192,10 @@ public class MedicalRecordService {
                 .map(MedicalRecordFile::getMedicalFile).map(fileService::toResponse).toList();
         return new MedicalRecordResponse(record.getId(), record.getPatientProfile().getId(),
                 record.getAuthorDoctorProfile().getId(), record.getTitle(), record.getRecordType(),
-                record.getOnChainRecordId(), record.getCreatedAt(), attached);
+                record.getOnChainRecordId(), record.getStatus(),
+                record.getPreviousRecord() == null ? null : record.getPreviousRecord().getId(),
+                record.getSuccessorRecord() == null ? null : record.getSuccessorRecord().getId(),
+                record.getCorrectionReason(), record.getCorrectedAt(), record.getCreatedAt(), attached);
     }
 
     private String normalize(String value) { return value.toLowerCase(Locale.ROOT); }

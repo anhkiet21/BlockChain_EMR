@@ -4,6 +4,7 @@ import { BrowserProvider, Contract, Interface, TransactionReceipt, ethers } from
 
 export const registryAbi = [
   "function createRecord(address patient,string cid,bytes32 contentHash) returns (uint256)",
+  "function createRecordVersion(uint256 previousRecordId,string cid,bytes32 contentHash) returns (uint256)",
   "event RecordCreated(uint256 indexed recordId,address indexed patient,address indexed author,string cid,bytes32 contentHash,uint256 previousRecordId)",
 ] as const;
 
@@ -70,6 +71,36 @@ export async function createOnChainRecord(patientWallet: string, doctorWallet: s
   const contract = new Contract(contractAddress, registryAbi, signer);
   const hash = contentHash.startsWith("0x") ? contentHash : `0x${contentHash}`;
   const receipt = await contract.createRecord(patientWallet, cid, hash).then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
+  const parser = new Interface(registryAbi);
+  for (const log of receipt.logs) {
+    try {
+      const parsed = parser.parseLog(log);
+      if (parsed?.name === "RecordCreated") return { recordId: parsed.args.recordId.toString(), transactionHash: receipt.hash };
+    } catch {
+      // Ignore logs emitted by other contracts.
+    }
+  }
+  throw new Error("Transaction thanh cong nhung khong tim thay event RecordCreated.");
+}
+
+export async function createOnChainRecordVersion(
+  previousRecordId: string | number,
+  doctorWallet: string,
+  cid: string,
+  contentHash: string,
+) {
+  const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+  if (!contractAddress || !ethers.isAddress(contractAddress)) {
+    throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS chua duoc cau hinh.");
+  }
+  const { signer, address } = await connectWallet();
+  if (address.toLowerCase() !== doctorWallet.toLowerCase()) {
+    throw new Error("Vi MetaMask hien tai khong khop vi bac si da xac minh.");
+  }
+  const contract = new Contract(contractAddress, registryAbi, signer);
+  const hash = contentHash.startsWith("0x") ? contentHash : `0x${contentHash}`;
+  const receipt = await contract.createRecordVersion(previousRecordId, cid, hash)
+    .then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
   const parser = new Interface(registryAbi);
   for (const log of receipt.logs) {
     try {

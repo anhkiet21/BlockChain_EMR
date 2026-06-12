@@ -37,7 +37,8 @@ export type MedicalFile = {
 
 export type MedicalRecord = {
   id: number; patientProfileId: number; authorDoctorProfileId: number; title: string; recordType: string;
-  onChainRecordId: string; createdAt: string; files: MedicalFile[];
+  onChainRecordId: string; status: "ACTIVE" | "CORRECTED" | "CANCELLED"; previousRecordId?: number;
+  successorRecordId?: number; correctionReason?: string; correctedAt?: string; createdAt: string; files: MedicalFile[];
 };
 
 export type AccessCheck = { patientWallet: string; granteeWallet: string; granted: boolean };
