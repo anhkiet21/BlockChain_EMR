@@ -100,7 +100,7 @@ export default function ProfilePage() {
       <div>
         <p className="label text-blue-700">Profile</p>
         <h1 className="mt-2 text-3xl font-bold">Ho so va vi</h1>
-        <p className="mt-2 text-slate-600">{user.email} · {user.roles.join(", ")}</p>
+        <p className="mt-2 text-slate-600">{user.identityNumberMasked ?? user.email} · {user.roles.join(", ")}</p>
       </div>
 
       <WalletCard onConnected={load} />
@@ -131,7 +131,7 @@ export default function ProfilePage() {
             <label className="grid gap-1 text-sm font-medium">Khoa phong<select className="input" value={doctor.department?.id || ""} onChange={(e) => setDoctor({ ...doctor, department: departments.find((item) => item.id === Number(e.target.value)) })}><option value="">Chua chon</option>{departments.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
             <label className="grid gap-1 text-sm font-medium">Dien thoai<input className="input" value={doctor.phone || ""} onChange={(e) => setDoctor({ ...doctor, phone: e.target.value })} /></label>
             <label className="grid gap-1 text-sm font-medium">Gioi thieu<textarea className="input" value={doctor.biography || ""} onChange={(e) => setDoctor({ ...doctor, biography: e.target.value })} /></label>
-            <p className={doctor.verified ? "text-sm font-semibold text-green-700" : "text-sm font-semibold text-amber-700"}>{doctor.verified ? "Da duoc xac minh" : "Chua duoc admin xac minh"}</p>
+            <p className={doctor.verified ? "text-sm font-semibold text-green-700" : "text-sm font-semibold text-amber-700"}>Trang thai: {doctor.verificationStatus ?? "PENDING_VERIFICATION"} · Co so: {doctor.facility?.name ?? "Chua gan"}</p>
             <button className="btn-primary">Luu ho so bac si</button>
           </form>
         )}

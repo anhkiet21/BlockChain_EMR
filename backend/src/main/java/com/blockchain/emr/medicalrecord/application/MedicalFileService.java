@@ -25,6 +25,8 @@ import com.blockchain.emr.integration.storage.domain.StorageService;
 import com.blockchain.emr.integration.storage.domain.StoredObject;
 import com.blockchain.emr.medicalrecord.api.dto.MedicalFileResponse;
 import com.blockchain.emr.medicalrecord.domain.MedicalFile;
+import com.blockchain.emr.medicalrecord.domain.MedicalRecordSourceType;
+import com.blockchain.emr.facility.domain.HealthcareFacility;
 import com.blockchain.emr.medicalrecord.infrastructure.MedicalFileRepository;
 import com.blockchain.emr.patient.domain.PatientProfile;
 import com.blockchain.emr.patient.infrastructure.PatientProfileRepository;
@@ -75,6 +77,16 @@ public class MedicalFileService {
     }
 
     public MedicalFile storeForPatient(PatientProfile patient, User uploader, MultipartFile file) {
+        return storeForPatient(patient, uploader, file, null, null, null);
+    }
+
+    public MedicalFile storeForPatient(
+            PatientProfile patient,
+            User uploader,
+            MultipartFile file,
+            MedicalRecordSourceType sourceType,
+            String uploaderWallet,
+            HealthcareFacility facility) {
         validate(file);
         byte[] plaintext = read(file);
         validateContent(file.getContentType(), plaintext);
@@ -92,6 +104,9 @@ public class MedicalFileService {
                 encrypted.iv(),
                 FileEncryptionService.ALGORITHM,
                 storageService.provider());
+        if (sourceType != null) {
+            medicalFile.assignSource(sourceType, uploaderWallet, facility);
+        }
         return medicalFileRepository.save(medicalFile);
     }
 

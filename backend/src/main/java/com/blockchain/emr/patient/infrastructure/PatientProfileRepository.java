@@ -13,12 +13,15 @@ import com.blockchain.emr.patient.domain.PatientProfile;
 public interface PatientProfileRepository extends JpaRepository<PatientProfile, Long> {
 
     Optional<PatientProfile> findByUserId(Long userId);
+    Optional<PatientProfile> findByUserIdentityNumberIgnoreCase(String identityNumber);
+    Optional<PatientProfile> findByPatientCodeIgnoreCase(String patientCode);
 
     @Query("""
             select profile from PatientProfile profile
             where :query = ''
                or lower(profile.patientCode) like lower(concat(:query, '%'))
                or lower(profile.user.fullName) like lower(concat(:query, '%'))
+               or lower(coalesce(profile.user.identityNumber, '')) = lower(:query)
                or lower(profile.user.email) like lower(concat(:query, '%'))
                or lower(coalesce(profile.phone, '')) like lower(concat(:query, '%'))
             """)

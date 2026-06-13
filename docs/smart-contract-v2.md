@@ -1,31 +1,29 @@
-# MedicalRecordRegistry V2
+# MedicalRecordRegistry
 
-`MedicalRecordRegistry` is immutable and has no owner, proxy, privileged admin,
-or private-key custody in the backend.
+`MedicalRecordRegistry` stores only authorization state and protected-record
+references. Plaintext medical or identity data must remain off-chain.
 
-## Access Control
+## Facility Access
 
-- Patients call `grantAccess(doctor)` and `revokeAccess(doctor)` from MetaMask.
-- Duplicate grants and revocations revert with custom errors.
-- `hasAccess(patient, grantee)` also returns true for the patient.
-- Backend transaction verification checks signer, contract, calldata, receipt,
-  and the matching `AccessGranted` or `AccessRevoked` event.
+- Facilities are seeded by the contract owner with `setFacilityStatus`.
+- Patients grant or revoke access for a `facilityId` from MetaMask.
+- A verified doctor can use a patient's records only through the doctor's active
+  backend facility membership and the matching on-chain facility grant.
+- The backend verifies the mined transaction and synchronizes its SQL projection;
+  SQL state alone never authorizes medical-record access.
+
+Legacy wallet-to-wallet grant functions remain for compatibility, but the new
+patient and doctor workflows do not use them.
 
 ## Medical Record References
 
-`createRecord(patient, cid, contentHash)` stores only:
+`createRecordWithMetadata` stores the encrypted-content CID, integrity hash,
+patient/uploader wallets, source type, facility identifier, timestamp, and
+version reference. It does not store profile fields or plaintext record content.
 
-- CID of encrypted content.
-- SHA-256 integrity hash.
-- Patient and author wallet addresses.
-- Creation timestamp.
-- Previous version ID.
-
-No plaintext medical data or personal profile data is stored on-chain.
-
-`createRecordVersion(previousRecordId, cid, contentHash)` creates an immutable
-successor and rejects branching from a superseded record. Revoked doctors cannot
-read records or create new versions.
+`sourceType` distinguishes `PATIENT_UPLOADED` and `DOCTOR_UPLOADED`. Doctor
+records carry a facility identifier so the backend can enforce the same consent
+boundary when listing or downloading content.
 
 ## Deployment
 
@@ -33,10 +31,9 @@ read records or create new versions.
 Set-Location blockchain
 npm run compile
 npm test
-npm run test:gas
 npm run deploy:local
 ```
 
-After every deployment, update `BLOCKCHAIN_CONTRACT_ADDRESS` for that
-environment. Existing V1 deployments are not upgradeable and must not be used
-with the V2 backend ABI.
+The deployment script seeds `BV001`, `BV002`, and `PK001`. Update
+`BLOCKCHAIN_CONTRACT_ADDRESS` after every deployment and regenerate the backend
+binding whenever the ABI changes.

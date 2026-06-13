@@ -14,6 +14,7 @@ import org.web3j.abi.datatypes.Function;
 import org.web3j.abi.datatypes.Utf8String;
 import org.web3j.abi.datatypes.generated.Uint256;
 import org.web3j.abi.datatypes.generated.Uint64;
+import org.web3j.abi.datatypes.generated.Uint8;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.RemoteFunctionCall;
 import org.web3j.tx.Contract;
@@ -60,6 +61,14 @@ public class MedicalRecordRegistry extends Contract {
         return executeRemoteCallSingleValueReturn(function, Boolean.class);
     }
 
+    public RemoteFunctionCall<Boolean> facilityAccessGrants(String patient, byte[] facilityId) {
+        Function function = new Function(
+                "facilityAccessGrants",
+                Arrays.asList(new Address(160, patient), new Bytes32(facilityId)),
+                Collections.singletonList(new TypeReference<Bool>() {}));
+        return executeRemoteCallSingleValueReturn(function, Boolean.class);
+    }
+
     public RemoteFunctionCall<Record> getRecord(BigInteger recordId) {
         Function function = new Function(
                 "getRecord",
@@ -74,6 +83,14 @@ public class MedicalRecordRegistry extends Contract {
                 Collections.singletonList(new Uint256(recordId)),
                 Collections.singletonList(new TypeReference<Bool>() {}));
         return executeRemoteCallSingleValueReturn(function, Boolean.class);
+    }
+
+    public RemoteFunctionCall<RecordMetadata> getRecordMetadata(BigInteger recordId) {
+        Function function = new Function(
+                "getRecordMetadata",
+                Collections.singletonList(new Uint256(recordId)),
+                Collections.singletonList(new TypeReference<RecordMetadata>() {}));
+        return executeRemoteCallSingleValueReturn(function, RecordMetadata.class);
     }
 
     public static MedicalRecordRegistry load(
@@ -113,6 +130,26 @@ public class MedicalRecordRegistry extends Contract {
             this.author = author;
             this.createdAt = createdAt;
             this.previousRecordId = previousRecordId;
+        }
+    }
+
+    public static class RecordMetadata extends DynamicStruct {
+        public final BigInteger sourceType;
+        public final String uploaderWallet;
+        public final byte[] facilityId;
+
+        public RecordMetadata(Uint8 sourceType, Address uploaderWallet, Bytes32 facilityId) {
+            super(sourceType, uploaderWallet, facilityId);
+            this.sourceType = sourceType.getValue();
+            this.uploaderWallet = uploaderWallet.getValue();
+            this.facilityId = facilityId.getValue();
+        }
+
+        public RecordMetadata(BigInteger sourceType, String uploaderWallet, byte[] facilityId) {
+            super(new Uint8(sourceType), new Address(160, uploaderWallet), new Bytes32(facilityId));
+            this.sourceType = sourceType;
+            this.uploaderWallet = uploaderWallet;
+            this.facilityId = facilityId;
         }
     }
 }

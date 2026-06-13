@@ -1,49 +1,11 @@
-# Access Control API
+# Facility Access Control
 
-All access-control endpoints require a patient JWT. The backend derives the
-patient identity from the authenticated principal and never accepts a patient
-profile ID from the client.
+Quyền chính thức được lưu trên blockchain theo `patientWallet -> facilityId`.
+Access request chỉ là workflow MySQL. Doctor đã verify và có ví gửi request thay
+mặt facility của mình; backend không nhận facility ID từ request của doctor.
 
-## MetaMask Flow
+Patient ký grant/revoke bằng MetaMask. Backend chỉ đồng bộ SQL sau khi transaction
+thành công và `hasFacilityAccess(patientWallet, facilityId)` khớp.
 
-1. Call `POST /access-control/transactions/prepare`.
-2. Send the returned `from`, `to`, `data`, and `value` fields with MetaMask on
-   the returned `chainId`.
-3. After the transaction is mined, call
-   `POST /access-control/transactions/verify` with the transaction hash and the
-   same doctor, wallet, and grant state.
-4. Read the patient's paginated grant/revoke history from
-   `GET /access-control/history`.
-
-The verify endpoint checks the mined transaction status, signer, contract
-address, calldata, and matching `AccessGranted` or `AccessRevoked` event before updating SQL. A
-transaction hash can be synchronized only once; repeating the same request is
-idempotent.
-
-## Requests
-
-Prepare:
-
-```json
-{
-  "doctorProfileId": 12,
-  "patientWallet": "0x...",
-  "doctorWallet": "0x...",
-  "granted": true
-}
-```
-
-Verify:
-
-```json
-{
-  "doctorProfileId": 12,
-  "patientWallet": "0x...",
-  "doctorWallet": "0x...",
-  "granted": true,
-  "transactionHash": "0x..."
-}
-```
-
-Both wallets must already be verified and linked to the expected patient and
-doctor accounts. The doctor must also be verified.
+Doctor được truy cập khi doctor `VERIFIED`, hai bên có ví, facility active, SQL
+grant active và quyền on-chain còn hiệu lực. Thu hồi on-chain làm doctor bị chặn.

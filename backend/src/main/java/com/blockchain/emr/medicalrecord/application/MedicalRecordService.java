@@ -191,7 +191,8 @@ public class MedicalRecordService {
         List<MedicalFileResponse> attached = recordFiles.findAllByMedicalRecordId(record.getId()).stream()
                 .map(MedicalRecordFile::getMedicalFile).map(fileService::toResponse).toList();
         return new MedicalRecordResponse(record.getId(), record.getPatientProfile().getId(),
-                record.getAuthorDoctorProfile().getId(), record.getTitle(), record.getRecordType(),
+                record.getAuthorDoctorProfile() == null ? null : record.getAuthorDoctorProfile().getId(),
+                record.getTitle(), record.getRecordType(),
                 record.getOnChainRecordId(), record.getStatus(),
                 record.getPreviousRecord() == null ? null : record.getPreviousRecord().getId(),
                 record.getSuccessorRecord() == null ? null : record.getSuccessorRecord().getId(),

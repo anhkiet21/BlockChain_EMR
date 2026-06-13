@@ -7,6 +7,12 @@ contract MedicalRecordRegistry {
     uint256 public constant MAX_CID_LENGTH = 255;
     uint256 public constant NO_PREVIOUS_RECORD = type(uint256).max;
 
+    enum SourceType {
+        UNSPECIFIED,
+        PATIENT_UPLOADED,
+        DOCTOR_UPLOADED
+    }
+
     struct Record {
         string cid;
         bytes32 contentHash;
@@ -14,6 +20,12 @@ contract MedicalRecordRegistry {
         address author;
         uint64 createdAt;
         uint256 previousRecordId;
+    }
+
+    struct RecordMetadata {
+        SourceType sourceType;
+        address uploaderWallet;
+        bytes32 facilityId;
     }
 
     error ZeroAddress();
@@ -24,11 +36,19 @@ contract MedicalRecordRegistry {
     error AccessDenied(address patient, address caller);
     error RecordNotFound(uint256 recordId);
     error RecordAlreadySuperseded(uint256 recordId);
+    error NotOwner();
+    error InvalidFacility();
+    error InvalidSourceType();
 
     uint256 public nextRecordId;
     mapping(uint256 => Record) private records;
     mapping(uint256 => uint256) private successorRecordIds;
     mapping(address => mapping(address => bool)) public accessGrants;
+    mapping(bytes32 => bool) public activeFacilities;
+    mapping(address => mapping(bytes32 => bool)) public facilityAccessGrants;
+    mapping(uint256 => RecordMetadata) private recordMetadata;
+
+    address public immutable owner;
 
     event AccessGranted(address indexed patient, address indexed grantee);
     event AccessRevoked(address indexed patient, address indexed grantee);
@@ -41,6 +61,47 @@ contract MedicalRecordRegistry {
         uint256 previousRecordId
     );
     event RecordVersionCreated(uint256 indexed previousRecordId, uint256 indexed newRecordId);
+    event FacilityStatusChanged(bytes32 indexed facilityId, bool active);
+    event FacilityAccessGranted(address indexed patient, bytes32 indexed facilityId);
+    event FacilityAccessRevoked(address indexed patient, bytes32 indexed facilityId);
+    event RecordMetadataCreated(
+        uint256 indexed recordId,
+        SourceType sourceType,
+        address indexed uploaderWallet,
+        bytes32 indexed facilityId
+    );
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    function setFacilityStatus(bytes32 facilityId, bool active) external {
+        if (msg.sender != owner) revert NotOwner();
+        if (facilityId == bytes32(0)) revert InvalidFacility();
+        activeFacilities[facilityId] = active;
+        emit FacilityStatusChanged(facilityId, active);
+    }
+
+    function grantFacilityAccess(bytes32 facilityId) external {
+        if (!activeFacilities[facilityId]) revert InvalidFacility();
+        if (facilityAccessGrants[msg.sender][facilityId]) {
+            revert AccessAlreadyGranted(msg.sender, address(0));
+        }
+        facilityAccessGrants[msg.sender][facilityId] = true;
+        emit FacilityAccessGranted(msg.sender, facilityId);
+    }
+
+    function revokeFacilityAccess(bytes32 facilityId) external {
+        if (!facilityAccessGrants[msg.sender][facilityId]) {
+            revert AccessAlreadyRevoked(msg.sender, address(0));
+        }
+        facilityAccessGrants[msg.sender][facilityId] = false;
+        emit FacilityAccessRevoked(msg.sender, facilityId);
+    }
+
+    function hasFacilityAccess(address patient, bytes32 facilityId) external view returns (bool) {
+        return facilityAccessGrants[patient][facilityId];
+    }
 
     function grantAccess(address grantee) external {
         if (grantee == address(0)) revert ZeroAddress();
@@ -70,6 +131,39 @@ contract MedicalRecordRegistry {
         recordId = _createRecord(patient, cid, contentHash, NO_PREVIOUS_RECORD);
     }
 
+    function createRecordWithMetadata(
+        address patient,
+        string calldata cid,
+        bytes32 contentHash,
+        SourceType sourceType,
+        bytes32 facilityId
+    ) external returns (uint256 recordId) {
+        if (sourceType == SourceType.PATIENT_UPLOADED) {
+            if (msg.sender != patient || facilityId != bytes32(0)) revert AccessDenied(patient, msg.sender);
+        } else if (sourceType == SourceType.DOCTOR_UPLOADED) {
+            if (!activeFacilities[facilityId] || !facilityAccessGrants[patient][facilityId]) {
+                revert AccessDenied(patient, msg.sender);
+            }
+        } else {
+            revert InvalidSourceType();
+        }
+
+        recordId = _createRecord(patient, cid, contentHash, NO_PREVIOUS_RECORD);
+        recordMetadata[recordId] = RecordMetadata(sourceType, msg.sender, facilityId);
+        emit RecordMetadataCreated(recordId, sourceType, msg.sender, facilityId);
+    }
+
+    function getRecordMetadata(uint256 recordId) external view returns (RecordMetadata memory) {
+        Record storage record = _existingRecord(recordId);
+        if (msg.sender != record.patient && recordMetadata[recordId].sourceType == SourceType.DOCTOR_UPLOADED) {
+            bytes32 facilityId = recordMetadata[recordId].facilityId;
+            if (!facilityAccessGrants[record.patient][facilityId]) revert AccessDenied(record.patient, msg.sender);
+        } else if (msg.sender != record.patient) {
+            _requireAuthorized(record.patient, msg.sender);
+        }
+        return recordMetadata[recordId];
+    }
+
     function createRecordVersion(uint256 previousRecordId, string calldata cid, bytes32 contentHash)
         external
         returns (uint256 recordId)
@@ -86,20 +180,20 @@ contract MedicalRecordRegistry {
 
     function getRecord(uint256 recordId) external view returns (Record memory) {
         Record storage record = _existingRecord(recordId);
-        _requireAuthorized(record.patient, msg.sender);
+        _requireRecordAuthorized(recordId, record, msg.sender);
         return record;
     }
 
     function getSuccessorRecordId(uint256 recordId) external view returns (bool superseded, uint256 successorRecordId) {
         Record storage record = _existingRecord(recordId);
-        _requireAuthorized(record.patient, msg.sender);
+        _requireRecordAuthorized(recordId, record, msg.sender);
         uint256 encoded = successorRecordIds[recordId];
         return encoded == 0 ? (false, 0) : (true, encoded - 1);
     }
 
     function isLatestVersion(uint256 recordId) external view returns (bool) {
         Record storage record = _existingRecord(recordId);
-        _requireAuthorized(record.patient, msg.sender);
+        _requireRecordAuthorized(recordId, record, msg.sender);
         return successorRecordIds[recordId] == 0;
     }
 
@@ -124,5 +218,13 @@ contract MedicalRecordRegistry {
     function _requireAuthorized(address patient, address caller) private view {
         if (patient == address(0)) revert ZeroAddress();
         if (caller != patient && !accessGrants[patient][caller]) revert AccessDenied(patient, caller);
+    }
+
+    function _requireRecordAuthorized(uint256 recordId, Record storage record, address caller) private view {
+        if (caller == record.patient || accessGrants[record.patient][caller]) return;
+        RecordMetadata storage metadata = recordMetadata[recordId];
+        if (metadata.sourceType == SourceType.DOCTOR_UPLOADED
+            && facilityAccessGrants[record.patient][metadata.facilityId]) return;
+        revert AccessDenied(record.patient, caller);
     }
 }

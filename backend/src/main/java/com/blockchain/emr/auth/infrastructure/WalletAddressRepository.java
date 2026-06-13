@@ -11,4 +11,5 @@ public interface WalletAddressRepository extends JpaRepository<WalletAddress, Lo
     boolean existsByAddress(String address);
     Optional<WalletAddress> findByAddress(String address);
     List<WalletAddress> findAllByUserId(Long userId);
+    Optional<WalletAddress> findFirstByUserIdOrderByIdAsc(Long userId);
 }

@@ -4,9 +4,12 @@ import java.time.Instant;
 
 import com.blockchain.emr.auth.domain.User;
 import com.blockchain.emr.patient.domain.PatientProfile;
+import com.blockchain.emr.facility.domain.HealthcareFacility;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -35,6 +38,17 @@ public class MedicalFile {
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "uploaded_by_user_id", nullable = false)
     private User uploadedBy;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source_type", nullable = false, length = 30)
+    private MedicalRecordSourceType sourceType;
+
+    @Column(name = "uploaded_by_wallet", length = 42)
+    private String uploadedByWallet;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "healthcare_facility_id")
+    private HealthcareFacility healthcareFacility;
 
     @Column(nullable = false, unique = true, length = 255)
     private String cid;
@@ -84,6 +98,18 @@ public class MedicalFile {
         this.encryptionIv = encryptionIv;
         this.encryptionAlgorithm = encryptionAlgorithm;
         this.storageProvider = storageProvider;
+        this.sourceType = patientProfile.getUser().getId().equals(uploadedBy.getId())
+                ? MedicalRecordSourceType.PATIENT_UPLOADED
+                : MedicalRecordSourceType.DOCTOR_UPLOADED;
+    }
+
+    public void assignSource(
+            MedicalRecordSourceType sourceType,
+            String uploadedByWallet,
+            HealthcareFacility healthcareFacility) {
+        this.sourceType = sourceType;
+        this.uploadedByWallet = uploadedByWallet;
+        this.healthcareFacility = healthcareFacility;
     }
 
     @PrePersist

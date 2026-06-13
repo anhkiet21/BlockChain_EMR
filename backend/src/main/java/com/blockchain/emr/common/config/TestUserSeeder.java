@@ -16,6 +16,7 @@ import com.blockchain.emr.auth.infrastructure.UserRepository;
 import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
 import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
+import com.blockchain.emr.facility.infrastructure.HealthcareFacilityRepository;
 import com.blockchain.emr.patient.domain.PatientProfile;
 import com.blockchain.emr.patient.infrastructure.PatientProfileRepository;
 
@@ -29,6 +30,7 @@ public class TestUserSeeder implements ApplicationRunner {
     private final PatientProfileRepository patients;
     private final DoctorProfileRepository doctors;
     private final WalletAddressRepository wallets;
+    private final HealthcareFacilityRepository facilities;
     private final PasswordEncoder passwordEncoder;
 
     public TestUserSeeder(
@@ -39,6 +41,7 @@ public class TestUserSeeder implements ApplicationRunner {
             PatientProfileRepository patients,
             DoctorProfileRepository doctors,
             WalletAddressRepository wallets,
+            HealthcareFacilityRepository facilities,
             PasswordEncoder passwordEncoder) {
         this.enabled = enabled;
         this.password = password;
@@ -47,6 +50,7 @@ public class TestUserSeeder implements ApplicationRunner {
         this.patients = patients;
         this.doctors = doctors;
         this.wallets = wallets;
+        this.facilities = facilities;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -56,19 +60,27 @@ public class TestUserSeeder implements ApplicationRunner {
         if (!enabled) {
             return;
         }
-        User patient = seedUser("patient@test.local", "Benh Nhan Test", RoleName.PATIENT);
-        User doctor = seedUser("doctor@test.local", "Bac Si Test", RoleName.DOCTOR);
+        User patient = seedIdentityUser("079000000001", "Benh Nhan Test", RoleName.PATIENT);
+        User doctor = seedIdentityUser("079000000002", "Bac Si Test", RoleName.DOCTOR);
         User admin = seedUser("admin@test.local", "Quan Tri Test", RoleName.ADMIN);
 
         patients.findByUserId(patient.getId()).orElseGet(() -> patients.save(new PatientProfile(patient)));
         doctors.findByUserId(doctor.getId()).orElseGet(() -> {
-            DoctorProfile profile = new DoctorProfile(doctor, "TEST-LICENSE-001", "General Medicine");
+            var facility = facilities.findByFacilityIdIgnoreCase("BV001")
+                    .orElseThrow(() -> new IllegalStateException("Seed facility BV001 is missing"));
+            DoctorProfile profile = new DoctorProfile(
+                    doctor,
+                    "TEST-LICENSE-079000000002",
+                    java.time.LocalDate.of(1985, 1, 1),
+                    com.blockchain.emr.patient.domain.Gender.MALE,
+                    "+84901112223",
+                    facility);
             profile.setVerified(true);
             return doctors.save(profile);
         });
         seedWallet(patient, "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266");
         seedWallet(doctor, "0x70997970c51812dc3a010c7d01b50e0d17dc79c8");
-        seedWallet(admin, "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc");
+        wallets.deleteAll(wallets.findAllByUserId(admin.getId()));
     }
 
     private User seedUser(String email, String fullName, RoleName roleName) {
@@ -79,9 +91,24 @@ public class TestUserSeeder implements ApplicationRunner {
         });
     }
 
+    private User seedIdentityUser(String identityNumber, String fullName, RoleName roleName) {
+        return users.findByIdentityNumberIgnoreCase(identityNumber).orElseGet(() -> {
+            Role role = roles.findByName(roleName)
+                    .orElseThrow(() -> new IllegalStateException("Required role is missing: " + roleName));
+            return users.save(User.withIdentityNumber(
+                    identityNumber,
+                    passwordEncoder.encode(password),
+                    fullName,
+                    role));
+        });
+    }
+
     private void seedWallet(User user, String address) {
-        if (!wallets.existsByAddress(address)) {
-            wallets.save(new WalletAddress(user, address));
+        WalletAddress wallet = wallets.findByAddress(address)
+                .orElseGet(() -> new WalletAddress(user, address));
+        if (!wallet.getUser().getId().equals(user.getId())) {
+            wallet.reassignTo(user);
         }
+        wallets.save(wallet);
     }
 }

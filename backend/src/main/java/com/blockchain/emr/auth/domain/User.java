@@ -30,8 +30,11 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(unique = true)
     private String email;
+
+    @Column(name = "identity_number", unique = true, length = 50)
+    private String identityNumber;
 
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
@@ -62,8 +65,29 @@ public class User {
         this.roles.add(role);
     }
 
+    public static User withIdentityNumber(
+            String identityNumber,
+            String passwordHash,
+            String fullName,
+            Role role) {
+        User user = new User();
+        user.identityNumber = identityNumber;
+        user.passwordHash = passwordHash;
+        user.fullName = fullName;
+        user.roles.add(role);
+        return user;
+    }
+
     public void updateFullName(String fullName) {
         this.fullName = fullName;
+    }
+
+    public void lock() {
+        enabled = false;
+    }
+
+    public void unlock() {
+        enabled = true;
     }
 
     @PrePersist

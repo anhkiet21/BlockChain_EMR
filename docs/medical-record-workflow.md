@@ -1,32 +1,14 @@
 # Medical Record Workflow
 
-The doctor workflow requires both an active SQL `access_grants` row and an active
-smart-contract `accessGrants(patientWallet, doctorWallet)` value. Both wallet
-addresses must be linked to the corresponding authenticated users.
+1. Backend xác thực caller và quyền đối tượng.
+2. Backend kiểm tra file, tính SHA-256 và mã hóa AES-256-GCM.
+3. Ciphertext được lưu IPFS; SQL giữ CID, IV và metadata.
+4. Frontend ký `createRecordWithMetadata` bằng MetaMask.
+5. Contract lưu CID, hash, patient, uploader, source type và facility ID.
+6. Backend đối chiếu metadata on-chain trước khi tạo `medical_records`.
 
-## Flow
+Patient upload dùng `PATIENT_UPLOADED`, facility rỗng. Doctor upload dùng
+`DOCTOR_UPLOADED`, facility lấy từ verified doctor profile.
 
-1. The verified doctor uploads an encrypted file for a patient:
-   `POST /api/medical-records/patients/{patientId}/files`.
-2. The frontend uses the returned CID and SHA-256 content hash in a MetaMask-signed
-   `createRecord(patient, cid, contentHash)` transaction.
-3. After the transaction succeeds, the frontend submits its `onChainRecordId` to
-   `POST /api/medical-records`.
-4. The backend verifies the on-chain CID, content hash, patient wallet, and author
-   wallet before saving relational metadata.
-
-## Protected APIs
-
-```text
-POST /api/medical-records/patients/{patientId}/files
-POST /api/medical-records
-POST /api/medical-records/{recordId}/files
-GET  /api/medical-records
-GET  /api/medical-records/{recordId}
-GET  /api/medical-records/{recordId}/files/{fileId}/content
-```
-
-All endpoints require a doctor access token. List, detail, upload, edit, and
-download operations repeat object-level application and on-chain authorization.
-Successful `UPLOAD`, `CREATE`, `EDIT`, `VIEW`, and `DOWNLOAD` actions are written
-to `record_access_logs`.
+Patient chỉ đọc record của mình. Doctor phải có facility access ở cả SQL và chain.
+CID không phải authorization; file chỉ được giải mã qua backend sau kiểm tra quyền.

@@ -34,7 +34,6 @@ public class JwtService {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(user.id().toString())
-                .claim("email", user.email())
                 .claim("roles", user.roles())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(accessTokenExpiration)))
@@ -55,4 +54,3 @@ public class JwtService {
         return accessTokenExpiration.toSeconds();
     }
 }
-

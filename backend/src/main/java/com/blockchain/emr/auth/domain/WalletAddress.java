@@ -41,9 +41,12 @@ public class WalletAddress {
         this.address = address;
     }
 
+    public void reassignTo(User user) {
+        this.user = user;
+    }
+
     @PrePersist
     void onCreate() {
         createdAt = Instant.now();
     }
 }
-

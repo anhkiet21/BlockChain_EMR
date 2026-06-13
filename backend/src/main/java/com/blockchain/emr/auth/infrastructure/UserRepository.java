@@ -9,5 +9,6 @@ import com.blockchain.emr.auth.domain.User;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailIgnoreCase(String email);
     boolean existsByEmailIgnoreCase(String email);
+    Optional<User> findByIdentityNumberIgnoreCase(String identityNumber);
+    boolean existsByIdentityNumberIgnoreCase(String identityNumber);
 }
-

@@ -3,8 +3,10 @@ const SESSION_KEY = "emr.session";
 
 export type User = {
   id: number;
-  email: string;
+  email?: string;
+  identityNumberMasked?: string;
   fullName: string;
+  status: "ACTIVE" | "LOCKED";
   roles: string[];
   wallets: string[];
 };

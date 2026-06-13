@@ -71,6 +71,19 @@ public class PatientProfile {
         this.patientCode = "PAT-%08d".formatted(user.getId());
     }
 
+    public PatientProfile(
+            User user,
+            LocalDate dateOfBirth,
+            Gender gender,
+            String phone,
+            String address) {
+        this(user);
+        this.dateOfBirth = dateOfBirth;
+        this.gender = gender;
+        this.phone = phone;
+        this.address = address;
+    }
+
     public void update(
             LocalDate dateOfBirth,
             Gender gender,
@@ -100,4 +113,3 @@ public class PatientProfile {
         updatedAt = Instant.now();
     }
 }
-

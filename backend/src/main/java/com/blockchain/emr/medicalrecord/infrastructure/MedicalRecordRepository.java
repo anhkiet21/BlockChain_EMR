@@ -9,4 +9,5 @@ import com.blockchain.emr.medicalrecord.domain.MedicalRecord;
 public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, Long> {
     Page<MedicalRecord> findByPatientProfileId(Long patientId, Pageable pageable);
     Optional<MedicalRecord> findByIdAndPatientProfileUserId(Long id, Long userId);
+    Page<MedicalRecord> findByPatientProfileUserId(Long userId, Pageable pageable);
 }

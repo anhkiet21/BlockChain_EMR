@@ -50,11 +50,31 @@ public class Web3jBlockchainService implements BlockchainService {
     }
 
     @Override
+    public boolean hasFacilityAccess(String patientWallet, String facilityId) {
+        validateAddress(patientWallet);
+        return execute(() -> contract(patientWallet)
+                .facilityAccessGrants(patientWallet, facilityBytes(facilityId)).send());
+    }
+
+    @Override
     public PreparedTransaction prepareAccessTransaction(String patientWallet, String granteeWallet, boolean granted) {
         validateAddress(patientWallet);
         validateAddress(granteeWallet);
         Function function = new Function(granted ? "grantAccess" : "revokeAccess",
                 List.of(new Address(granteeWallet)), List.of());
+        BigInteger chainId = execute(() -> web3j.ethChainId().send().getChainId());
+        return new PreparedTransaction(normalize(patientWallet), contractAddress,
+                FunctionEncoder.encode(function), chainId, "0x0");
+    }
+
+    @Override
+    public PreparedTransaction prepareFacilityAccessTransaction(
+            String patientWallet, String facilityId, boolean granted) {
+        validateAddress(patientWallet);
+        Function function = new Function(
+                granted ? "grantFacilityAccess" : "revokeFacilityAccess",
+                List.of(new org.web3j.abi.datatypes.generated.Bytes32(facilityBytes(facilityId))),
+                List.of());
         BigInteger chainId = execute(() -> web3j.ethChainId().send().getChainId());
         return new PreparedTransaction(normalize(patientWallet), contractAddress,
                 FunctionEncoder.encode(function), chainId, "0x0");
@@ -90,6 +110,23 @@ public class Web3jBlockchainService implements BlockchainService {
                 recordId, record.cid, Numeric.toHexString(record.contentHash), normalize(record.patient),
                 normalize(record.author), Instant.ofEpochSecond(record.createdAt.longValueExact()),
                 record.previousRecordId, latest);
+    }
+
+    @Override
+    public OnChainRecordMetadata getRecordMetadata(BigInteger recordId, String callerWallet) {
+        validateAddress(callerWallet);
+        var metadata = execute(() -> contract(callerWallet).getRecordMetadata(recordId).send());
+        String sourceType = switch (metadata.sourceType.intValueExact()) {
+            case 1 -> "PATIENT_UPLOADED";
+            case 2 -> "DOCTOR_UPLOADED";
+            default -> "UNSPECIFIED";
+        };
+        int length = 0;
+        while (length < metadata.facilityId.length && metadata.facilityId[length] != 0) {
+            length++;
+        }
+        String facilityId = new String(metadata.facilityId, 0, length, java.nio.charset.StandardCharsets.UTF_8);
+        return new OnChainRecordMetadata(sourceType, normalize(metadata.uploaderWallet), facilityId);
     }
 
     @Override
@@ -200,6 +237,18 @@ public class Web3jBlockchainService implements BlockchainService {
 
     private String normalize(String address) {
         return address == null ? "" : address.toLowerCase(Locale.ROOT);
+    }
+
+    private byte[] facilityBytes(String facilityId) {
+        if (facilityId == null || facilityId.isBlank()) {
+            throw BlockchainException.readFailed();
+        }
+        byte[] source = facilityId.trim().toUpperCase(Locale.ROOT)
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (source.length > 32) {
+            throw BlockchainException.readFailed();
+        }
+        return java.util.Arrays.copyOf(source, 32);
     }
 
     private <T> T execute(Callable<T> action) {

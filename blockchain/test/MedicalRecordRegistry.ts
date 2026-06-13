@@ -6,6 +6,7 @@ describe("MedicalRecordRegistry", function () {
   const cidV2 = "bafy-encrypted-record-v2";
   const hashV1 = ethers.keccak256(ethers.toUtf8Bytes("encrypted-v1"));
   const hashV2 = ethers.keccak256(ethers.toUtf8Bytes("encrypted-v2"));
+  const facilityId = ethers.encodeBytes32String("BV001");
 
   async function fixture() {
     const [patient, doctor, stranger] = await ethers.getSigners();
@@ -13,6 +14,40 @@ describe("MedicalRecordRegistry", function () {
     await registry.waitForDeployment();
     return { registry, patient, doctor, stranger };
   }
+
+  it("seeds facilities, grants and revokes facility access", async function () {
+    const { registry, patient, stranger } = await fixture();
+    await expect(registry.connect(stranger).setFacilityStatus(facilityId, true))
+      .to.be.revertedWithCustomError(registry, "NotOwner");
+    await registry.setFacilityStatus(facilityId, true);
+    await expect(registry.connect(patient).grantFacilityAccess(facilityId))
+      .to.emit(registry, "FacilityAccessGranted").withArgs(patient.address, facilityId);
+    expect(await registry.hasFacilityAccess(patient.address, facilityId)).to.equal(true);
+    await expect(registry.connect(patient).revokeFacilityAccess(facilityId))
+      .to.emit(registry, "FacilityAccessRevoked").withArgs(patient.address, facilityId);
+    expect(await registry.hasFacilityAccess(patient.address, facilityId)).to.equal(false);
+    await expect(registry.connect(patient).grantFacilityAccess(ethers.encodeBytes32String("UNKNOWN")))
+      .to.be.revertedWithCustomError(registry, "InvalidFacility");
+  });
+
+  it("stores patient and doctor record source metadata", async function () {
+    const { registry, patient, doctor } = await fixture();
+    await registry.setFacilityStatus(facilityId, true);
+
+    await registry.connect(patient).createRecordWithMetadata(
+      patient.address, cidV1, hashV1, 1, ethers.ZeroHash
+    );
+    const patientMetadata = await registry.connect(patient).getRecordMetadata(0);
+    expect(patientMetadata.sourceType).to.equal(1);
+    expect(patientMetadata.uploaderWallet).to.equal(patient.address);
+
+    await registry.connect(patient).grantFacilityAccess(facilityId);
+    await registry.connect(doctor).createRecordWithMetadata(patient.address, cidV2, hashV2, 2, facilityId);
+    const doctorMetadata = await registry.connect(patient).getRecordMetadata(1);
+    expect(doctorMetadata.sourceType).to.equal(2);
+    expect(doctorMetadata.uploaderWallet).to.equal(doctor.address);
+    expect(doctorMetadata.facilityId).to.equal(facilityId);
+  });
 
   it("grants and revokes access with explicit events and duplicate protection", async function () {
     const { registry, patient, doctor } = await fixture();

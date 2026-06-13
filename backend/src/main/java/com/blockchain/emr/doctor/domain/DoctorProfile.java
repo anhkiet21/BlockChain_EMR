@@ -1,11 +1,16 @@
 package com.blockchain.emr.doctor.domain;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 import com.blockchain.emr.auth.domain.User;
+import com.blockchain.emr.facility.domain.HealthcareFacility;
+import com.blockchain.emr.patient.domain.Gender;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -39,8 +44,19 @@ public class DoctorProfile {
     @Column(name = "license_number", nullable = false, unique = true, length = 100)
     private String licenseNumber;
 
-    @Column(nullable = false, length = 150)
+    @Column(length = 150)
     private String specialization;
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Gender gender;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "healthcare_facility_id")
+    private HealthcareFacility healthcareFacility;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "department_id")
@@ -52,8 +68,9 @@ public class DoctorProfile {
     @Column(length = 1000)
     private String biography;
 
-    @Column(nullable = false)
-    private boolean verified;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status", nullable = false, length = 30)
+    private DoctorVerificationStatus verificationStatus = DoctorVerificationStatus.PENDING_VERIFICATION;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -66,6 +83,23 @@ public class DoctorProfile {
         this.doctorCode = "DOC-%08d".formatted(user.getId());
         this.licenseNumber = licenseNumber;
         this.specialization = specialization;
+    }
+
+    public DoctorProfile(
+            User user,
+            String licenseNumber,
+            LocalDate dateOfBirth,
+            Gender gender,
+            String phone,
+            HealthcareFacility healthcareFacility) {
+        this.user = user;
+        this.doctorCode = "DOC-%08d".formatted(user.getId());
+        this.licenseNumber = licenseNumber;
+        this.dateOfBirth = dateOfBirth;
+        this.gender = gender;
+        this.phone = phone;
+        this.healthcareFacility = healthcareFacility;
+        this.verificationStatus = DoctorVerificationStatus.PENDING_VERIFICATION;
     }
 
     public void update(
@@ -82,7 +116,21 @@ public class DoctorProfile {
     }
 
     public void setVerified(boolean verified) {
-        this.verified = verified;
+        verificationStatus = verified
+                ? DoctorVerificationStatus.VERIFIED
+                : DoctorVerificationStatus.REJECTED;
+    }
+
+    public void verify() {
+        verificationStatus = DoctorVerificationStatus.VERIFIED;
+    }
+
+    public void reject() {
+        verificationStatus = DoctorVerificationStatus.REJECTED;
+    }
+
+    public boolean isVerified() {
+        return verificationStatus == DoctorVerificationStatus.VERIFIED;
     }
 
     @PrePersist
@@ -97,4 +145,3 @@ public class DoctorProfile {
         updatedAt = Instant.now();
     }
 }
-

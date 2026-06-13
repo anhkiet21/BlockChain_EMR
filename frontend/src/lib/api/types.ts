@@ -7,8 +7,38 @@ export type Department = {
 };
 
 export type DoctorProfile = {
-  id: number; userId: number; doctorCode: string; email: string; fullName: string; licenseNumber: string;
-  specialization: string; department?: Department; phone?: string; biography?: string; verified: boolean;
+  id: number; userId: number; doctorCode: string; email?: string; identityNumberMasked?: string; fullName: string; licenseNumber: string;
+  specialization?: string; department?: Department; phone?: string; biography?: string; verified: boolean;
+  verificationStatus: "PENDING_VERIFICATION" | "VERIFIED" | "REJECTED";
+  dateOfBirth?: string; gender?: string; facility?: Facility; wallets: string[];
+};
+
+export type Facility = { facilityId: string; name: string; address: string; description?: string };
+
+export type FacilityGrant = {
+  facilityId: string; facilityName: string; active: boolean; blockchainTxHash: string; updatedAt: string;
+};
+
+export type FacilityAccessRequest = {
+  requestId: number; facilityId: string; facilityName: string; doctorName: string; reason: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELED"; blockchainTxHash?: string;
+  createdAt: string; respondedAt?: string;
+};
+
+export type PreparedFacilityTransaction = {
+  from: string; to: string; data: string; chainId: string; value: string; facilityId: string; granted: boolean;
+};
+
+export type PendingRecordUpload = {
+  medicalFileId: number; cid: string; contentHash: string; sourceType: "PATIENT_UPLOADED" | "DOCTOR_UPLOADED";
+  patientWallet: string; uploaderWallet: string; facilityId?: string;
+};
+
+export type UnifiedMedicalRecord = {
+  recordId: number; patientProfileId: number; medicalFileId: number; originalFileName: string; mimeType: string;
+  fileSize: number; cid: string; contentHash: string; sourceType: "PATIENT_UPLOADED" | "DOCTOR_UPLOADED";
+  uploaderName: string; uploadedByWallet: string; facilityId?: string; facilityName?: string;
+  onChainRecordId: string; blockchainTxHash: string; createdAt: string;
 };
 
 export type PatientProfile = {

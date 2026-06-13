@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 import com.blockchain.emr.auth.security.AuthenticatedUser;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
+import com.blockchain.emr.doctor.domain.DoctorVerificationStatus;
 
 @Component("profileAuthorization")
 public class ProfileAuthorization {
@@ -20,7 +21,8 @@ public class ProfileAuthorization {
             return false;
         }
         return user.roles().contains("DOCTOR")
-                && doctorProfileRepository.existsByUserIdAndVerifiedTrue(user.id());
+                && doctorProfileRepository.existsByUserIdAndVerificationStatus(
+                        user.id(),
+                        DoctorVerificationStatus.VERIFIED);
     }
 }
-

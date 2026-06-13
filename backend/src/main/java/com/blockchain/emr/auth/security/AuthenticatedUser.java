@@ -12,6 +12,7 @@ import com.blockchain.emr.auth.domain.User;
 public record AuthenticatedUser(
         Long id,
         String email,
+        String identityNumber,
         String password,
         boolean enabled,
         Set<String> roles) implements UserDetails {
@@ -23,6 +24,7 @@ public record AuthenticatedUser(
         return new AuthenticatedUser(
                 user.getId(),
                 user.getEmail(),
+                user.getIdentityNumber(),
                 user.getPasswordHash(),
                 user.isEnabled(),
                 roles);
@@ -37,7 +39,7 @@ public record AuthenticatedUser(
 
     @Override
     public String getUsername() {
-        return email;
+        return identityNumber != null ? identityNumber : email;
     }
 
     @Override

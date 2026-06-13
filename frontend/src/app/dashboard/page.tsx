@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 import { getSession, Session } from "@/lib/api/client";
 
 const CARDS = [
-  { role: "PATIENT", href: "/patient/access", title: "Quan ly quyen truy cap", text: "Cap/huy quyen bac si bang MetaMask va xem lich su." },
-  { role: "PATIENT", href: "/patient/files", title: "File benh an cua toi", text: "Upload file rieng, xem danh sach va tai lai file da ma hoa/lien ket storage." },
+  { role: "PATIENT", href: "/patient/access", title: "Quan ly quyen truy cap", text: "Cap/huy quyen co so y te va duyet access request bang MetaMask." },
+  { role: "PATIENT", href: "/patient/records", title: "Ho so benh an cua toi", text: "Upload IPFS, ky blockchain va xem nguon ho so." },
   { role: "DOCTOR", href: "/doctor/records", title: "Quan ly benh an", text: "Tim benh nhan, upload IPFS, tao benh an va tai file khi co quyen." },
-  { role: "ADMIN", href: "/admin", title: "Quan tri", text: "Quan ly khoa phong, xac minh bac si va dong bo blockchain events." },
+  { role: "ADMIN", href: "/admin", title: "Quan tri", text: "Xac minh, tu choi va khoa tai khoan bac si." },
   { role: "ALL", href: "/profile", title: "Ho so va vi", text: "Cap nhat profile va lien ket vi bang chu ky MetaMask." },
   { role: "ALL", href: "/blockchain", title: "Blockchain tools", text: "Kiem tra access, transaction va record on-chain." },
 ];

@@ -30,8 +30,8 @@ export default function Home() {
         </div>
         <div className="card grid gap-3">
           <h2 className="text-lg font-bold">Tai khoan seed</h2>
-          <pre className="rounded-xl bg-slate-950 p-4 text-sm text-slate-100">{`patient@test.local / password123
-doctor@test.local  / password123
+          <pre className="rounded-xl bg-slate-950 p-4 text-sm text-slate-100">{`079000000001 / password123 (Patient)
+079000000002 / password123 (Doctor)
 admin@test.local   / password123`}</pre>
           <p className="text-sm text-slate-600">Dung Ctrl+F5 neu browser dang giu bundle cu.</p>
         </div>

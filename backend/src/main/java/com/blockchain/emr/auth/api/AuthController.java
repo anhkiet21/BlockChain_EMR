@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.blockchain.emr.auth.api.dto.LoginRequest;
+import com.blockchain.emr.auth.api.dto.DoctorRegistrationRequest;
+import com.blockchain.emr.auth.api.dto.PatientRegistrationRequest;
 import com.blockchain.emr.auth.api.dto.RefreshRequest;
 import com.blockchain.emr.auth.api.dto.RegisterRequest;
 import com.blockchain.emr.auth.api.dto.TokenResponse;
@@ -39,6 +41,18 @@ public class AuthController {
     @PostMapping("/register")
     ApiResponse<TokenResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ApiResponse.success(authService.register(request));
+    }
+
+    @PostMapping("/register/patient")
+    ApiResponse<TokenResponse> registerPatient(
+            @Valid @RequestBody PatientRegistrationRequest request) {
+        return ApiResponse.success(authService.registerPatient(request));
+    }
+
+    @PostMapping("/register/doctor")
+    ApiResponse<TokenResponse> registerDoctor(
+            @Valid @RequestBody DoctorRegistrationRequest request) {
+        return ApiResponse.success(authService.registerDoctor(request));
     }
 
     @PostMapping("/login")

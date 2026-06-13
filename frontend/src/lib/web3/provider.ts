@@ -6,6 +6,7 @@ export const registryAbi = [
   "function createRecord(address patient,string cid,bytes32 contentHash) returns (uint256)",
   "function createRecordVersion(uint256 previousRecordId,string cid,bytes32 contentHash) returns (uint256)",
   "event RecordCreated(uint256 indexed recordId,address indexed patient,address indexed author,string cid,bytes32 contentHash,uint256 previousRecordId)",
+  "function createRecordWithMetadata(address patient,string cid,bytes32 contentHash,uint8 sourceType,bytes32 facilityId) returns (uint256)",
 ] as const;
 
 type EthereumProvider = {
@@ -81,6 +82,31 @@ export async function createOnChainRecord(patientWallet: string, doctorWallet: s
     }
   }
   throw new Error("Transaction thanh cong nhung khong tim thay event RecordCreated.");
+}
+
+export async function createOnChainRecordWithMetadata(input: {
+  patientWallet: string; uploaderWallet: string; cid: string; contentHash: string;
+  sourceType: "PATIENT_UPLOADED" | "DOCTOR_UPLOADED"; facilityId?: string;
+}) {
+  const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+  if (!contractAddress || !ethers.isAddress(contractAddress)) throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS chua duoc cau hinh.");
+  const { signer, address } = await connectWallet();
+  if (address.toLowerCase() !== input.uploaderWallet.toLowerCase()) throw new Error("Vi MetaMask khong khop vi da xac minh.");
+  const contract = new Contract(contractAddress, registryAbi, signer);
+  const hash = input.contentHash.startsWith("0x") ? input.contentHash : `0x${input.contentHash}`;
+  const sourceType = input.sourceType === "PATIENT_UPLOADED" ? 1 : 2;
+  const facilityId = input.facilityId ? ethers.encodeBytes32String(input.facilityId) : ethers.ZeroHash;
+  const receipt = await contract.createRecordWithMetadata(
+    input.patientWallet, input.cid, hash, sourceType, facilityId,
+  ).then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
+  const parser = new Interface(registryAbi);
+  for (const log of receipt.logs) {
+    try {
+      const parsed = parser.parseLog(log);
+      if (parsed?.name === "RecordCreated") return { recordId: parsed.args.recordId.toString(), transactionHash: receipt.hash };
+    } catch { /* ignore unrelated logs */ }
+  }
+  throw new Error("Khong tim thay event RecordCreated.");
 }
 
 export async function createOnChainRecordVersion(

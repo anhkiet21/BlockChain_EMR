@@ -7,9 +7,12 @@ import java.util.List;
 public interface BlockchainService {
 
     boolean hasAccess(String patientWallet, String granteeWallet);
+    boolean hasFacilityAccess(String patientWallet, String facilityId);
     PreparedTransaction prepareAccessTransaction(String patientWallet, String granteeWallet, boolean granted);
+    PreparedTransaction prepareFacilityAccessTransaction(String patientWallet, String facilityId, boolean granted);
     AccessTransaction getAccessTransaction(String transactionHash);
     OnChainRecord getRecord(BigInteger recordId, String callerWallet);
+    OnChainRecordMetadata getRecordMetadata(BigInteger recordId, String callerWallet);
     TransactionState getTransactionState(String transactionHash);
     BigInteger latestBlock();
     List<AccessEvent> readAccessEvents(BigInteger fromBlock, BigInteger toBlock);
@@ -23,6 +26,8 @@ public interface BlockchainService {
             this(recordId, cid, null, patientWallet, authorWallet, createdAt, null, true);
         }
     }
+    record OnChainRecordMetadata(
+            String sourceType, String uploaderWallet, String facilityId) {}
     record PreparedTransaction(String from, String to, String data, BigInteger chainId, String value) {}
     record AccessTransaction(
             String transactionHash, String from, String to, String input, TransactionState.Status status,

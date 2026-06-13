@@ -43,8 +43,12 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
                                 "/auth/register",
+                                "/auth/register/patient",
+                                "/auth/register/doctor",
                                 "/auth/login",
-                                "/auth/refresh").permitAll()
+                                "/auth/refresh",
+                                "/facilities").permitAll()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/patients/me").hasRole("PATIENT")
                         .requestMatchers(HttpMethod.GET, "/patients").hasAnyRole("DOCTOR", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/patients/*").hasRole("ADMIN")
@@ -55,6 +59,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/departments/*").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/departments").authenticated()
                         .requestMatchers("/medical-files/**").hasRole("PATIENT")
+                        .requestMatchers("/patient/**").hasRole("PATIENT")
+                        .requestMatchers("/doctor/**").hasRole("DOCTOR")
                         .requestMatchers("/access-control/**").hasRole("PATIENT")
                         .requestMatchers("/medical-records/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.POST, "/blockchain/events/sync").hasRole("ADMIN")

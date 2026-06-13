@@ -3,6 +3,9 @@ package com.blockchain.emr.common.exception;
 import org.springframework.http.HttpStatus;
 
 public enum ErrorCode {
+    IDENTITY_NUMBER_ALREADY_EXISTS(HttpStatus.CONFLICT, "Identity number is already registered"),
+    LICENSE_ALREADY_EXISTS(HttpStatus.CONFLICT, "Doctor license number is already registered"),
+    INVALID_FACILITY(HttpStatus.BAD_REQUEST, "Healthcare facility is missing or inactive"),
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "Dữ liệu gửi lên không hợp lệ"),
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "Yêu cầu không hợp lệ"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Cần đăng nhập để truy cập tài nguyên"),
