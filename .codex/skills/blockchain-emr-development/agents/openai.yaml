@@ -1,0 +1,4 @@
+interface:
+  display_name: "Blockchain EMR Development"
+  short_description: "Shared architecture and secure delivery workflow"
+  default_prompt: "Use $blockchain-emr-development to implement this project change consistently and securely."

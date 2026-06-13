@@ -1,0 +1,61 @@
+# OS and editors
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.keystore
+*.jks
+
+# Logs and temporary files
+*.log
+*.pid
+*.tmp
+*.temp
+*.bak
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+frontend/.turbo/
+frontend/.vercel/
+frontend/*.tsbuildinfo
+
+# Backend
+backend/target/
+backend/logs/
+backend/.factorypath
+backend/.classpath
+backend/.project
+backend/.settings/
+
+# Blockchain
+blockchain/node_modules/
+blockchain/artifacts/
+blockchain/cache/
+blockchain/coverage/
+blockchain/coverage.json
+blockchain/typechain-types/
+blockchain/deployments/localhost/
+blockchain/ignition/deployments/chain-31337/
+
+# Local infrastructure data
+infrastructure/ipfs-data/
+infrastructure/ipfs-staging/
+infrastructure/mysql-data/

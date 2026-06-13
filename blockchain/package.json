@@ -1,0 +1,19 @@
+{
+  "name": "blockchain-emr-contracts",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:gas": "cross-env REPORT_GAS=true hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "fund": "hardhat run scripts/fund-wallets.ts --network localhost",
+    "balances": "hardhat run scripts/check-balances.ts --network localhost"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "cross-env": "^7.0.3",
+    "hardhat": "^2.22.19",
+    "typescript": "^5.8.2"
+  }
+}
