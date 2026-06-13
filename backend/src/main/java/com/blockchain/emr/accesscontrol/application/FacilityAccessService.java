@@ -124,6 +124,13 @@ public class FacilityAccessService {
         requirePatient(patientUserId);
         String patientWallet = requireWallet(patientUserId).getAddress();
         var facility = findFacilityForChange(request);
+        boolean currentlyGranted = blockchain.hasFacilityAccess(patientWallet, facility.getFacilityId());
+        if (currentlyGranted == request.granted()) {
+            String message = request.granted()
+                    ? "Facility access is already granted on blockchain"
+                    : "Facility access is already revoked on blockchain";
+            throw new ApplicationException(ErrorCode.CONFLICT, message);
+        }
         var prepared = blockchain.prepareFacilityAccessTransaction(
                 patientWallet, facility.getFacilityId(), request.granted());
         return new PreparedFacilityTransactionResponse(

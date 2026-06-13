@@ -10,6 +10,13 @@ async function main() {
     "bafy-backend-smoke-cid",
     ethers.keccak256(ethers.toUtf8Bytes("encrypted-backend-smoke-content")),
   )).wait();
+  await (await registry.connect(patient).createRecordWithMetadata(
+    patient.address,
+    "bafy-backend-smoke-patient-metadata",
+    ethers.keccak256(ethers.toUtf8Bytes("encrypted-backend-smoke-patient-metadata")),
+    1,
+    ethers.ZeroHash,
+  )).wait();
 
   console.log(JSON.stringify({
     contractAddress: await registry.getAddress(),

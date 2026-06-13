@@ -31,6 +31,10 @@ class Web3jBlockchainRpcTests {
         assertThat(record.cid()).isEqualTo("bafy-backend-smoke-cid");
         assertThat(record.contentHash()).matches("^0x[0-9a-f]{64}$");
         assertThat(record.latestVersion()).isTrue();
+        var metadata = blockchainService.getRecordMetadata(BigInteger.ONE, patient);
+        assertThat(metadata.sourceType()).isEqualTo("PATIENT_UPLOADED");
+        assertThat(metadata.uploaderWallet()).isEqualTo(patient.toLowerCase());
+        assertThat(metadata.facilityId()).isEmpty();
         assertThat(blockchainService.getAccessTransaction(accessTransaction).accessEvent().granted()).isTrue();
         assertThat(blockchainService.getTransactionState(transaction).status())
                 .isEqualTo(BlockchainService.TransactionState.Status.SUCCESS);

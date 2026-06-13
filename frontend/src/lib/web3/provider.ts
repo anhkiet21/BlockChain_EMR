@@ -3,6 +3,10 @@
 import { BrowserProvider, Contract, Interface, TransactionReceipt, ethers } from "ethers";
 
 export const registryAbi = [
+  "error AccessAlreadyGranted(address patient,address grantee)",
+  "error AccessAlreadyRevoked(address patient,address grantee)",
+  "error AccessDenied(address patient,address caller)",
+  "error InvalidFacility()",
   "function createRecord(address patient,string cid,bytes32 contentHash) returns (uint256)",
   "function createRecordVersion(uint256 previousRecordId,string cid,bytes32 contentHash) returns (uint256)",
   "event RecordCreated(uint256 indexed recordId,address indexed patient,address indexed author,string cid,bytes32 contentHash,uint256 previousRecordId)",
@@ -51,13 +55,39 @@ export async function sendPreparedTransaction(transaction: {
   if (address.toLowerCase() !== transaction.from.toLowerCase()) {
     throw new Error("Ví MetaMask hiện tại không khớp ví bệnh nhân trong transaction.");
   }
-  const receipt = await signer.sendTransaction({
-    to: transaction.to,
-    data: transaction.data,
-    value: BigInt(transaction.value),
-  }).then((tx) => tx.wait());
+  let receipt: TransactionReceipt | null;
+  try {
+    receipt = await signer.sendTransaction({
+      to: transaction.to,
+      data: transaction.data,
+      value: BigInt(transaction.value),
+    }).then((tx) => tx.wait());
+  } catch (error) {
+    throw new Error(readableContractError(error));
+  }
   if (!receipt) throw new Error("Không nhận được transaction receipt.");
   return receipt;
+}
+
+function readableContractError(error: unknown) {
+  const candidate = error as {
+    data?: string;
+    shortMessage?: string;
+    info?: { error?: { data?: string } };
+  };
+  const data = candidate?.data ?? candidate?.info?.error?.data;
+  if (data) {
+    try {
+      const parsed = new Interface(registryAbi).parseError(data);
+      if (parsed?.name === "AccessAlreadyGranted") return "Quyen truy cap nay da duoc cap tren blockchain.";
+      if (parsed?.name === "AccessAlreadyRevoked") return "Quyen truy cap nay da duoc thu hoi tren blockchain.";
+      if (parsed?.name === "AccessDenied") return "Vi hien tai khong co quyen thuc hien giao dich nay.";
+      if (parsed?.name === "InvalidFacility") return "Ma co so y te khong hop le hoac chua duoc kich hoat tren blockchain.";
+    } catch {
+      // Fall through to the wallet-provided message for unknown contract errors.
+    }
+  }
+  return candidate?.shortMessage ?? (error instanceof Error ? error.message : "Giao dich blockchain that bai.");
 }
 
 export async function createOnChainRecord(patientWallet: string, doctorWallet: string, cid: string, contentHash: string) {

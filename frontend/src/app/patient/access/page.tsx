@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { AccessState } from "@/components/access-state";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
-import { apiFetch } from "@/lib/api/client";
-import { Facility, FacilityAccessRequest, FacilityGrant, Page, PreparedFacilityTransaction } from "@/lib/api/types";
+import { apiFetch, getSession } from "@/lib/api/client";
+import { Facility, FacilityAccessCheck, FacilityAccessRequest, FacilityGrant, Page, PreparedFacilityTransaction } from "@/lib/api/types";
 import { sendPreparedTransaction } from "@/lib/web3/provider";
 
 export default function PatientAccessPage() {
@@ -12,6 +12,7 @@ export default function PatientAccessPage() {
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [grants, setGrants] = useState<FacilityGrant[]>([]);
   const [requests, setRequests] = useState<FacilityAccessRequest[]>([]);
+  const [onChainAccess, setOnChainAccess] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
 
@@ -29,6 +30,17 @@ export default function PatientAccessPage() {
       setFacilities(facilityData);
       setGrants(grantData);
       setRequests(requestData.content);
+      const patientWallet = getSession()?.user.wallets[0];
+      if (patientWallet) {
+        const checks = await Promise.all(facilityData.map((facility) =>
+          apiFetch<FacilityAccessCheck>(
+            `/blockchain/facility-access?patientWallet=${encodeURIComponent(patientWallet)}&facilityId=${encodeURIComponent(facility.facilityId)}`,
+          ),
+        ));
+        setOnChainAccess(Object.fromEntries(checks.map((check) => [check.facilityId, check.granted])));
+      } else {
+        setOnChainAccess({});
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Không tải được dữ liệu");
     }
@@ -88,7 +100,7 @@ export default function PatientAccessPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {facilities.map((facility) => {
-          const granted = active.get(facility.facilityId);
+          const granted = onChainAccess[facility.facilityId] ?? active.get(facility.facilityId) ?? false;
           return (
             <article className="card" key={facility.facilityId}>
               <div className="flex items-start justify-between gap-3">
