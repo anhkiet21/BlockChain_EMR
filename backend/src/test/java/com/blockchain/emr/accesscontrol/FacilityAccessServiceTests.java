@@ -29,9 +29,10 @@ class FacilityAccessServiceTests {
     private final HealthcareFacilityService facilities = mock(HealthcareFacilityService.class);
     private final FacilityAccessRequestRepository requests = mock(FacilityAccessRequestRepository.class);
     private final FacilityAccessGrantRepository grants = mock(FacilityAccessGrantRepository.class);
+    private final FacilityAccessAuditRepository audits = mock(FacilityAccessAuditRepository.class);
     private final BlockchainService blockchain = mock(BlockchainService.class);
     private final FacilityAccessService service = new FacilityAccessService(
-            patients, doctors, wallets, facilities, requests, grants, blockchain);
+            patients, doctors, wallets, facilities, requests, grants, audits, blockchain);
 
     private static final long PATIENT_USER_ID = 7L;
     private static final String PATIENT_WALLET = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";

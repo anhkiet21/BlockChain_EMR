@@ -344,6 +344,14 @@ public class UnifiedMedicalRecordService {
         return normalized.startsWith("0x") ? normalized.substring(2) : normalized;
     }
 
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('ADMIN')")
+    public PageResponse<UnifiedMedicalRecordResponse> adminRecordAudit(int page, int size) {
+        return PageResponse.from(records.findAll(
+                        PageRequest.of(Math.max(page, 0), safeSize(size), Sort.by("createdAt").descending()))
+                .map(this::response));
+    }
+
     private boolean equalsIgnoreCase(String left, String right) {
         return left != null && right != null && left.equalsIgnoreCase(right);
     }

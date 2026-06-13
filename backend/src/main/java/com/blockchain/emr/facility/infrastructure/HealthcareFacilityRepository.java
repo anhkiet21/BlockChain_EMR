@@ -9,6 +9,7 @@ import com.blockchain.emr.facility.domain.HealthcareFacility;
 
 public interface HealthcareFacilityRepository extends JpaRepository<HealthcareFacility, Long> {
     List<HealthcareFacility> findAllByActiveTrueOrderByNameAsc();
+    List<HealthcareFacility> findAllByOrderByNameAsc();
     Optional<HealthcareFacility> findByFacilityIdIgnoreCase(String facilityId);
 }
 

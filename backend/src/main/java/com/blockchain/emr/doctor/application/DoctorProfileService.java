@@ -151,7 +151,8 @@ public class DoctorProfileService {
                         ? null
                         : facilityService.toResponse(profile.getHealthcareFacility()),
                 walletAddressRepository.findAllByUserId(user.getId()).stream()
-                        .map(wallet -> wallet.getAddress()).toList());
+                        .map(wallet -> wallet.getAddress()).toList(),
+                user.isEnabled() ? "ACTIVE" : "LOCKED");
     }
 
     private DoctorProfile findProfile(Long profileId) {

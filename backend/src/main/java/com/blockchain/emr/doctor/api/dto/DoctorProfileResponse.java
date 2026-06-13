@@ -24,5 +24,6 @@ public record DoctorProfileResponse(
         LocalDate dateOfBirth,
         Gender gender,
         HealthcareFacilityResponse facility,
-        List<String> wallets) {
+        List<String> wallets,
+        String accountStatus) {
 }

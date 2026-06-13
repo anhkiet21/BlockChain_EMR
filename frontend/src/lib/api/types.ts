@@ -10,10 +10,24 @@ export type DoctorProfile = {
   id: number; userId: number; doctorCode: string; email?: string; identityNumberMasked?: string; fullName: string; licenseNumber: string;
   specialization?: string; department?: Department; phone?: string; biography?: string; verified: boolean;
   verificationStatus: "PENDING_VERIFICATION" | "VERIFIED" | "REJECTED";
-  dateOfBirth?: string; gender?: string; facility?: Facility; wallets: string[];
+  dateOfBirth?: string; gender?: string; facility?: Facility; wallets: string[]; accountStatus: "ACTIVE" | "LOCKED";
 };
 
 export type Facility = { facilityId: string; name: string; address: string; description?: string };
+
+export type AdminPatient = {
+  id: number; userId: number; patientCode: string; fullName: string; identityNumberMasked?: string;
+  phone?: string; walletLinked: boolean; accountStatus: "ACTIVE" | "LOCKED";
+};
+
+export type AdminFacility = {
+  facilityId: string; name: string; address: string; active: boolean;
+};
+
+export type AdminAccessAudit = {
+  id: number; action: "GRANT_ACCESS" | "REVOKE_ACCESS"; actorName: string; actorWallet: string;
+  facilityId: string; facilityName: string; transactionHash: string; occurredAt: string;
+};
 
 export type FacilityGrant = {
   facilityId: string; facilityName: string; active: boolean; blockchainTxHash: string; updatedAt: string;

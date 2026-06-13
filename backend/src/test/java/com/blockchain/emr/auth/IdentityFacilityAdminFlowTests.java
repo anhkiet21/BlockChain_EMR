@@ -172,6 +172,38 @@ class IdentityFacilityAdminFlowTests {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void adminDashboardEndpointsRequireAdminAndMinimizePatientIdentity() throws Exception {
+        String identityNumber = uniqueIdentity();
+        JsonNode registration = registerPatient(identityNumber);
+        String patientToken = registration.at("/data/accessToken").asText();
+
+        mockMvc.perform(get("/admin/patients").header("Authorization", bearer(patientToken)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/admin/facilities").header("Authorization", bearer(patientToken)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/admin/audit/access").header("Authorization", bearer(patientToken)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/admin/audit/records").header("Authorization", bearer(patientToken)))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/admin/patients").with(user(adminPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[?(@.userId == %s)].identityNumberMasked"
+                        .formatted(registration.at("/data/user/id").asLong())).value(org.hamcrest.Matchers.hasItem(
+                                org.hamcrest.Matchers.endsWith(
+                                        identityNumber.substring(identityNumber.length() - 4).toUpperCase()))))
+                .andExpect(jsonPath("$.data.content[0].identityNumber").doesNotExist());
+
+        mockMvc.perform(get("/admin/facilities").with(user(adminPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].active").exists());
+        mockMvc.perform(get("/admin/audit/access").with(user(adminPrincipal())))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/admin/audit/records").with(user(adminPrincipal())))
+                .andExpect(status().isOk());
+    }
+
     private JsonNode registerPatient(String identityNumber) throws Exception {
         MvcResult result = mockMvc.perform(post("/auth/register/patient")
                         .contentType(MediaType.APPLICATION_JSON)

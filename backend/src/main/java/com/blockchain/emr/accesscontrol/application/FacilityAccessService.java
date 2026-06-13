@@ -12,6 +12,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.blockchain.emr.accesscontrol.FacilityAccessGrant;
+import com.blockchain.emr.accesscontrol.FacilityAccessAudit;
+import com.blockchain.emr.accesscontrol.FacilityAccessAuditRepository;
+import com.blockchain.emr.accesscontrol.api.AdminFacilityAccessAuditResponse;
 import com.blockchain.emr.accesscontrol.FacilityAccessGrantRepository;
 import com.blockchain.emr.accesscontrol.FacilityAccessRequest;
 import com.blockchain.emr.accesscontrol.FacilityAccessRequestRepository;
@@ -37,6 +40,7 @@ public class FacilityAccessService {
     private final HealthcareFacilityService facilities;
     private final FacilityAccessRequestRepository requests;
     private final FacilityAccessGrantRepository grants;
+    private final FacilityAccessAuditRepository audits;
     private final BlockchainService blockchain;
 
     public FacilityAccessService(
@@ -46,6 +50,7 @@ public class FacilityAccessService {
             HealthcareFacilityService facilities,
             FacilityAccessRequestRepository requests,
             FacilityAccessGrantRepository grants,
+            FacilityAccessAuditRepository audits,
             BlockchainService blockchain) {
         this.patients = patients;
         this.doctors = doctors;
@@ -53,6 +58,7 @@ public class FacilityAccessService {
         this.facilities = facilities;
         this.requests = requests;
         this.grants = grants;
+        this.audits = audits;
         this.blockchain = blockchain;
     }
 
@@ -108,7 +114,7 @@ public class FacilityAccessService {
         PatientProfile patient = request.getPatientProfile();
         String patientWallet = requireWallet(patientUserId).getAddress();
         verifyFacilityTransaction(patientWallet, request.getFacility().getFacilityId(), transactionHash, true);
-        syncGrant(patient, request.getFacility(), true, transactionHash);
+        syncGrant(patient, patientWallet, request.getFacility(), true, transactionHash);
         try {
             request.approve(transactionHash);
         } catch (IllegalStateException exception) {
@@ -148,7 +154,7 @@ public class FacilityAccessService {
         String patientWallet = requireWallet(patientUserId).getAddress();
         var facility = findFacilityForChange(request);
         verifyFacilityTransaction(patientWallet, facility.getFacilityId(), transactionHash, request.granted());
-        return grantResponse(syncGrant(patient, facility, request.granted(), transactionHash));
+        return grantResponse(syncGrant(patient, patientWallet, facility, request.granted(), transactionHash));
     }
 
     @Transactional(readOnly = true)
@@ -231,12 +237,30 @@ public class FacilityAccessService {
         }
     }
 
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('ADMIN')")
+    public PageResponse<AdminFacilityAccessAuditResponse> adminAudit(int page, int size) {
+        int safeSize = Math.max(1, Math.min(size, 100));
+        return PageResponse.from(audits.findAllByOrderByOccurredAtDescIdDesc(
+                        PageRequest.of(Math.max(page, 0), safeSize))
+                .map(audit -> new AdminFacilityAccessAuditResponse(
+                        audit.getId(),
+                        audit.isGranted() ? "GRANT_ACCESS" : "REVOKE_ACCESS",
+                        audit.getPatientProfile().getUser().getFullName(),
+                        audit.getPatientWallet(),
+                        audit.getFacility().getFacilityId(),
+                        audit.getFacility().getName(),
+                        audit.getBlockchainTxHash(),
+                        audit.getOccurredAt())));
+    }
+
     private boolean equalsIgnoreCase(String left, String right) {
         return left != null && right != null && left.equalsIgnoreCase(right);
     }
 
     private FacilityAccessGrant syncGrant(
             PatientProfile patient,
+            String patientWallet,
             com.blockchain.emr.facility.domain.HealthcareFacility facility,
             boolean active,
             String transactionHash) {
@@ -244,7 +268,9 @@ public class FacilityAccessService {
                         patient.getId(), facility.getId())
                 .orElseGet(() -> new FacilityAccessGrant(patient, facility, active, transactionHash));
         grant.update(active, transactionHash);
-        return grants.save(grant);
+        FacilityAccessGrant saved = grants.save(grant);
+        audits.save(new FacilityAccessAudit(patient, facility, patientWallet, active, transactionHash));
+        return saved;
     }
 
     private com.blockchain.emr.facility.domain.HealthcareFacility findFacilityForChange(
