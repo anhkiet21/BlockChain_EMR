@@ -117,6 +117,7 @@ export default function PatientRecordsPage() {
           <thead>
             <tr>
               <th>Tệp</th>
+              <th>Phiên bản</th>
               <th>Nguồn</th>
               <th>Người tải lên</th>
               <th>Cơ sở</th>
@@ -127,6 +128,13 @@ export default function PatientRecordsPage() {
             {records.map((record) => (
               <tr key={record.recordId}>
                 <td className="font-semibold">{record.originalFileName}</td>
+                <td>
+                  <span className={record.status === "ACTIVE" ? "badge" : "badge border-amber-200 bg-amber-50 text-amber-700"}>
+                    {record.status === "ACTIVE" ? "Hiện hành" : "Đã đính chính"}
+                  </span>
+                  {record.correctionReason && <p className="mt-1 text-xs text-slate-500">Lý do: {record.correctionReason}</p>}
+                  {record.previousRecordId && <p className="mt-1 text-xs text-slate-500">Đính chính từ hồ sơ #{record.previousRecordId}</p>}
+                </td>
                 <td>{sourceLabel(record.sourceType)}</td>
                 <td>{record.uploaderName}</td>
                 <td>{record.facilityName ?? "-"}</td>
@@ -138,7 +146,7 @@ export default function PatientRecordsPage() {
                 </td>
               </tr>
             ))}
-            {!records.length && <tr><td colSpan={5} className="text-center text-slate-500">Chưa có bệnh án.</td></tr>}
+            {!records.length && <tr><td colSpan={6} className="text-center text-slate-500">Chưa có bệnh án.</td></tr>}
           </tbody>
         </table>
       </div>

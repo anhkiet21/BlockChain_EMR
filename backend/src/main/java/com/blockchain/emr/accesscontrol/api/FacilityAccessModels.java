@@ -2,8 +2,10 @@ package com.blockchain.emr.accesscontrol.api;
 
 import java.math.BigInteger;
 import java.time.Instant;
+import java.time.LocalDate;
 
 import com.blockchain.emr.accesscontrol.FacilityAccessRequestStatus;
+import com.blockchain.emr.patient.domain.Gender;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -49,5 +51,12 @@ public final class FacilityAccessModels {
             boolean active,
             String blockchainTxHash,
             Instant updatedAt) {}
+
+    public record AuthorizedPatientResponse(
+            Long id,
+            String patientCode,
+            String fullName,
+            LocalDate dateOfBirth,
+            Gender gender) {}
 }
 

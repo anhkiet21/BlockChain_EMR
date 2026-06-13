@@ -25,6 +25,7 @@ import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordRequest;
+import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordCorrectionRequest;
 import com.blockchain.emr.medicalrecord.api.dto.PendingRecordUploadResponse;
 import com.blockchain.emr.medicalrecord.api.dto.RecordAuditLogResponse;
 import com.blockchain.emr.medicalrecord.api.dto.UnifiedMedicalRecordResponse;
@@ -114,6 +115,28 @@ public class UnifiedMedicalRecordService {
     }
 
     @Transactional
+    @PreAuthorize("hasRole('DOCTOR') and #userId == authentication.principal.id")
+    public PendingRecordUploadResponse uploadCorrection(Long userId, Long recordId, MultipartFile multipart) {
+        MedicalRecord previous = requireActiveRecord(recordId);
+        DoctorProfile doctor = requireDoctor(userId);
+        PatientProfile patient = previous.getPatientProfile();
+        if (!access.canDoctorAccessPatient(userId, patient.getId())) {
+            throw new AccessDeniedException("Facility has not been granted patient access");
+        }
+        String doctorWallet = requireWallet(userId).getAddress();
+        String patientWallet = requireWallet(patient.getUser().getId()).getAddress();
+        MedicalFile file = fileService.storeForPatient(
+                patient,
+                doctor.getUser(),
+                multipart,
+                MedicalRecordSourceType.DOCTOR_UPLOADED,
+                doctorWallet,
+                doctor.getHealthcareFacility());
+        logs.save(new RecordAccessLog(previous, file, doctor.getUser(), "UPLOAD"));
+        return pending(file, patientWallet, doctorWallet);
+    }
+
+    @Transactional
     @PreAuthorize("hasAnyRole('PATIENT','DOCTOR') and #userId == authentication.principal.id")
     public UnifiedMedicalRecordResponse confirm(Long userId, ConfirmRecordRequest request) {
         MedicalFile file = files.findById(request.medicalFileId())
@@ -156,6 +179,110 @@ public class UnifiedMedicalRecordService {
         recordFiles.save(new MedicalRecordFile(record, file));
         logs.save(new RecordAccessLog(record, file, file.getUploadedBy(), "CREATE"));
         return response(record);
+    }
+
+    @Transactional
+    @PreAuthorize("hasRole('DOCTOR') and #userId == authentication.principal.id")
+    public UnifiedMedicalRecordResponse confirmCorrection(
+            Long userId,
+            Long recordId,
+            ConfirmRecordCorrectionRequest request) {
+        MedicalRecord previous = records.findLockedById(recordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        ensureActive(previous);
+        DoctorProfile doctor = requireDoctor(userId);
+        PatientProfile patient = previous.getPatientProfile();
+        if (!access.canDoctorAccessPatient(userId, patient.getId())) {
+            throw new AccessDeniedException("Facility access was revoked");
+        }
+
+        MedicalFile file = files.findById(request.medicalFileId())
+                .orElseThrow(() -> new ResourceNotFoundException("Medical file not found"));
+        if (!file.getUploadedBy().getId().equals(userId)
+                || !file.getPatientProfile().getId().equals(patient.getId())
+                || file.getSourceType() != MedicalRecordSourceType.DOCTOR_UPLOADED
+                || file.getHealthcareFacility() == null
+                || !file.getHealthcareFacility().getId().equals(doctor.getHealthcareFacility().getId())) {
+            throw new AccessDeniedException("Correction file does not belong to this doctor, patient and facility");
+        }
+        if (recordFiles.existsByMedicalFileId(file.getId())) {
+            throw new ApplicationException(ErrorCode.CONFLICT, "Medical file is already attached");
+        }
+
+        String doctorWallet = requireWallet(userId).getAddress();
+        String patientWallet = requireWallet(patient.getUser().getId()).getAddress();
+        String facilityId = doctor.getHealthcareFacility().getFacilityId();
+        verifyCorrectionTransaction(
+                previous, file, patientWallet, doctorWallet, facilityId, request);
+        var onChain = blockchain.getRecord(request.onChainRecordId(), doctorWallet);
+        var metadata = blockchain.getRecordMetadata(request.onChainRecordId(), doctorWallet);
+        boolean onChainValid = file.getCid().equals(onChain.cid())
+                && normalizeHash(file.getContentHash()).equals(normalizeHash(onChain.contentHash()))
+                && patientWallet.equalsIgnoreCase(onChain.patientWallet())
+                && doctorWallet.equalsIgnoreCase(onChain.authorWallet())
+                && previous.getOnChainRecordId().equals(onChain.previousRecordId())
+                && onChain.latestVersion()
+                && MedicalRecordSourceType.DOCTOR_UPLOADED.name().equals(metadata.sourceType())
+                && doctorWallet.equalsIgnoreCase(metadata.uploaderWallet())
+                && facilityId.equalsIgnoreCase(metadata.facilityId());
+        if (!onChainValid) {
+            throw new ApplicationException(ErrorCode.CONFLICT, "On-chain correction does not match the medical record");
+        }
+
+        String reason = request.correctionReason().trim();
+        MedicalRecord corrected = new MedicalRecord(
+                patient,
+                doctor,
+                doctor.getUser(),
+                MedicalRecordSourceType.DOCTOR_UPLOADED,
+                doctor.getHealthcareFacility(),
+                doctorWallet,
+                file.getOriginalFilename(),
+                file.getContentType().toUpperCase(Locale.ROOT),
+                file.getCid(),
+                file.getContentHash(),
+                request.onChainRecordId(),
+                request.transactionHash().toLowerCase(Locale.ROOT));
+        corrected.linkToPrevious(previous, reason);
+        corrected = records.save(corrected);
+        recordFiles.save(new MedicalRecordFile(corrected, file));
+        previous.markCorrectedBy(corrected, doctor, reason);
+        logs.save(new RecordAccessLog(previous, null, doctor.getUser(), "CORRECT"));
+        logs.save(new RecordAccessLog(corrected, file, doctor.getUser(), "CREATE"));
+        return response(corrected);
+    }
+
+    private void verifyCorrectionTransaction(
+            MedicalRecord previous,
+            MedicalFile file,
+            String patientWallet,
+            String doctorWallet,
+            String facilityId,
+            ConfirmRecordCorrectionRequest request) {
+        var expected = blockchain.prepareRecordVersionTransaction(
+                doctorWallet,
+                previous.getOnChainRecordId(),
+                file.getCid(),
+                file.getContentHash(),
+                facilityId);
+        var transaction = blockchain.getRecordTransaction(request.transactionHash());
+        if (transaction.status() == BlockchainService.TransactionState.Status.PENDING) {
+            throw new ApplicationException(ErrorCode.CONFLICT, "Blockchain transaction has not been mined");
+        }
+        var event = transaction.recordEvent();
+        boolean valid = transaction.status() == BlockchainService.TransactionState.Status.SUCCESS
+                && equalsIgnoreCase(transaction.from(), expected.from())
+                && equalsIgnoreCase(transaction.to(), expected.to())
+                && equalsIgnoreCase(transaction.input(), expected.data())
+                && event != null
+                && equalsIgnoreCase(event.transactionHash(), transaction.transactionHash())
+                && event.recordId().equals(request.onChainRecordId())
+                && equalsIgnoreCase(event.patientWallet(), patientWallet)
+                && equalsIgnoreCase(event.authorWallet(), doctorWallet)
+                && event.cid().equals(file.getCid());
+        if (!valid) {
+            throw new AccessDeniedException("Blockchain transaction does not match the correction");
+        }
     }
 
     private void verifyRecordTransaction(
@@ -286,7 +413,10 @@ public class UnifiedMedicalRecordService {
                 record.getUploadedByWallet(),
                 record.getHealthcareFacility() == null ? null : record.getHealthcareFacility().getFacilityId(),
                 record.getHealthcareFacility() == null ? null : record.getHealthcareFacility().getName(),
-                record.getOnChainRecordId(), record.getBlockchainTxHash(), record.getCreatedAt());
+                record.getOnChainRecordId(), record.getBlockchainTxHash(), record.getStatus(),
+                record.getPreviousRecord() == null ? null : record.getPreviousRecord().getId(),
+                record.getSuccessorRecord() == null ? null : record.getSuccessorRecord().getId(),
+                record.getCorrectionReason(), record.getCorrectedAt(), record.getCreatedAt());
     }
 
     private RecordAuditLogResponse auditResponse(RecordAccessLog log) {
@@ -342,6 +472,20 @@ public class UnifiedMedicalRecordService {
     private String normalizeHash(String hash) {
         String normalized = hash == null ? "" : hash.toLowerCase(Locale.ROOT);
         return normalized.startsWith("0x") ? normalized.substring(2) : normalized;
+    }
+
+    private MedicalRecord requireActiveRecord(Long recordId) {
+        MedicalRecord record = records.findById(recordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        ensureActive(record);
+        return record;
+    }
+
+    private void ensureActive(MedicalRecord record) {
+        if (record.getStatus() != com.blockchain.emr.medicalrecord.domain.MedicalRecordStatus.ACTIVE
+                || record.getSuccessorRecord() != null) {
+            throw new ApplicationException(ErrorCode.CONFLICT, "Medical record is not the active version");
+        }
     }
 
     @Transactional(readOnly = true)

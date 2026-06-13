@@ -22,6 +22,7 @@ import com.blockchain.emr.auth.security.AuthenticatedUser;
 import com.blockchain.emr.common.api.ApiResponse;
 import com.blockchain.emr.common.api.PageResponse;
 import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordRequest;
+import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordCorrectionRequest;
 import com.blockchain.emr.medicalrecord.api.dto.PendingRecordUploadResponse;
 import com.blockchain.emr.medicalrecord.api.dto.RecordAuditLogResponse;
 import com.blockchain.emr.medicalrecord.api.dto.UnifiedMedicalRecordResponse;
@@ -80,6 +81,22 @@ public class UnifiedMedicalRecordController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @Valid @RequestBody ConfirmRecordRequest request) {
         return ApiResponse.success(service.confirm(user.id(), request));
+    }
+
+    @PostMapping(path = "/doctor/records/{recordId}/corrections", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    ApiResponse<PendingRecordUploadResponse> doctorCorrectionUpload(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long recordId,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.success(service.uploadCorrection(user.id(), recordId, file));
+    }
+
+    @PostMapping("/doctor/records/{recordId}/corrections/confirm")
+    ApiResponse<UnifiedMedicalRecordResponse> doctorCorrectionConfirm(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long recordId,
+            @Valid @RequestBody ConfirmRecordCorrectionRequest request) {
+        return ApiResponse.success(service.confirmCorrection(user.id(), recordId, request));
     }
 
     @GetMapping("/doctor/records")

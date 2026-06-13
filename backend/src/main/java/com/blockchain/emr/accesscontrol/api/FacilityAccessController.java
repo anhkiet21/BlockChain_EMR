@@ -77,4 +77,12 @@ public class FacilityAccessController {
     ApiResponse<List<FacilityGrantResponse>> grants(@AuthenticationPrincipal AuthenticatedUser user) {
         return ApiResponse.success(service.grants(user.id()));
     }
+
+    @GetMapping("/doctor/authorized-patients")
+    ApiResponse<PageResponse<AuthorizedPatientResponse>> authorizedPatients(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success(service.authorizedPatients(user.id(), page, size));
+    }
 }

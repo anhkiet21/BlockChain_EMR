@@ -1,24 +1,32 @@
 package com.blockchain.emr.accesscontrol;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import java.math.BigInteger;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import com.blockchain.emr.accesscontrol.api.FacilityAccessModels.FacilityAccessChangeRequest;
 import com.blockchain.emr.accesscontrol.application.FacilityAccessService;
+import com.blockchain.emr.auth.domain.User;
 import com.blockchain.emr.auth.domain.WalletAddress;
 import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
 import com.blockchain.emr.common.exception.ApplicationException;
+import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
 import com.blockchain.emr.facility.application.HealthcareFacilityService;
 import com.blockchain.emr.facility.domain.HealthcareFacility;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
+import com.blockchain.emr.patient.domain.Gender;
 import com.blockchain.emr.patient.domain.PatientProfile;
 import com.blockchain.emr.patient.infrastructure.PatientProfileRepository;
 
@@ -107,5 +115,37 @@ class FacilityAccessServiceTests {
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
 
         verify(grants, never()).save(any());
+    }
+
+    @Test
+    void listsOnlyActivePatientsForAuthenticatedDoctorsFacility() {
+        long doctorUserId = 9L;
+        long facilityId = 11L;
+        DoctorProfile doctor = mock(DoctorProfile.class);
+        HealthcareFacility doctorFacility = mock(HealthcareFacility.class);
+        FacilityAccessGrant grant = mock(FacilityAccessGrant.class);
+        PatientProfile patient = mock(PatientProfile.class);
+        User patientUser = mock(User.class);
+
+        when(doctors.findByUserId(doctorUserId)).thenReturn(Optional.of(doctor));
+        when(doctor.isVerified()).thenReturn(true);
+        when(doctor.getHealthcareFacility()).thenReturn(doctorFacility);
+        when(doctorFacility.isActive()).thenReturn(true);
+        when(doctorFacility.getId()).thenReturn(facilityId);
+        when(grant.getPatientProfile()).thenReturn(patient);
+        when(patient.getId()).thenReturn(21L);
+        when(patient.getPatientCode()).thenReturn("PAT-00000021");
+        when(patient.getUser()).thenReturn(patientUser);
+        when(patientUser.getFullName()).thenReturn("Nguyen Van An");
+        when(patient.getDateOfBirth()).thenReturn(LocalDate.of(1990, 1, 2));
+        when(patient.getGender()).thenReturn(Gender.MALE);
+        when(grants.findActivePatientsByFacilityId(eq(facilityId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(grant)));
+
+        var result = service.authorizedPatients(doctorUserId, 0, 50);
+
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().get(0).patientCode()).isEqualTo("PAT-00000021");
+        verify(grants).findActivePatientsByFacilityId(eq(facilityId), any(Pageable.class));
     }
 }

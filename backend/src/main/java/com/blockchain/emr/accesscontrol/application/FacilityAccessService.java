@@ -167,6 +167,26 @@ public class FacilityAccessService {
     }
 
     @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('DOCTOR') and #doctorUserId == authentication.principal.id")
+    public PageResponse<AuthorizedPatientResponse> authorizedPatients(
+            Long doctorUserId, int page, int size) {
+        DoctorProfile doctor = requireEligibleDoctor(doctorUserId);
+        int safeSize = Math.max(1, Math.min(size, 50));
+        return PageResponse.from(grants.findActivePatientsByFacilityId(
+                        doctor.getHealthcareFacility().getId(),
+                        PageRequest.of(Math.max(page, 0), safeSize))
+                .map(grant -> {
+                    PatientProfile patient = grant.getPatientProfile();
+                    return new AuthorizedPatientResponse(
+                            patient.getId(),
+                            patient.getPatientCode(),
+                            patient.getUser().getFullName(),
+                            patient.getDateOfBirth(),
+                            patient.getGender());
+                }));
+    }
+
+    @Transactional(readOnly = true)
     public boolean canDoctorAccessPatient(Long doctorUserId, Long patientProfileId) {
         DoctorProfile doctor = doctors.findByUserId(doctorUserId).orElse(null);
         PatientProfile patient = patients.findById(patientProfileId).orElse(null);

@@ -18,10 +18,15 @@ import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordRequest;
+import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordCorrectionRequest;
 import com.blockchain.emr.medicalrecord.application.MedicalFileService;
 import com.blockchain.emr.medicalrecord.application.UnifiedMedicalRecordService;
 import com.blockchain.emr.medicalrecord.domain.MedicalFile;
 import com.blockchain.emr.medicalrecord.domain.MedicalRecordSourceType;
+import com.blockchain.emr.medicalrecord.domain.MedicalRecordStatus;
+import com.blockchain.emr.medicalrecord.domain.MedicalRecord;
+import com.blockchain.emr.doctor.domain.DoctorProfile;
+import com.blockchain.emr.facility.domain.HealthcareFacility;
 import com.blockchain.emr.medicalrecord.infrastructure.MedicalFileRepository;
 import com.blockchain.emr.medicalrecord.infrastructure.MedicalRecordFileRepository;
 import com.blockchain.emr.medicalrecord.infrastructure.MedicalRecordRepository;
@@ -87,5 +92,120 @@ class UnifiedMedicalRecordServiceTests {
 
         verify(blockchain, never()).getRecord(any(), anyString());
         verify(records, never()).save(any());
+    }
+
+    @Test
+    void rejectsCorrectionAfterFacilityAccessWasRevoked() {
+        long userId = 7L;
+        MedicalRecord previous = mock(MedicalRecord.class);
+        PatientProfile patient = mock(PatientProfile.class);
+        DoctorProfile doctor = eligibleDoctor(userId);
+        when(previous.getStatus()).thenReturn(MedicalRecordStatus.ACTIVE);
+        when(previous.getPatientProfile()).thenReturn(patient);
+        when(patient.getId()).thenReturn(21L);
+        when(records.findLockedById(31L)).thenReturn(Optional.of(previous));
+        when(doctors.findByUserId(userId)).thenReturn(Optional.of(doctor));
+        when(access.canDoctorAccessPatient(userId, 21L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.confirmCorrection(
+                userId,
+                31L,
+                new ConfirmRecordCorrectionRequest(
+                        41L, BigInteger.valueOf(51), "0x" + "a".repeat(64), "Wrong diagnosis")))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("revoked");
+
+        verify(blockchain, never()).getRecordTransaction(anyString());
+        verify(records, never()).save(any());
+    }
+
+    @Test
+    void rejectsCorrectionWhoseTransactionInputDoesNotMatch() {
+        long userId = 7L;
+        long patientUserId = 8L;
+        long patientId = 21L;
+        long fileId = 41L;
+        long recordId = 31L;
+        String doctorWalletAddress = "0x" + "1".repeat(40);
+        String patientWalletAddress = "0x" + "2".repeat(40);
+        String transactionHash = "0x" + "a".repeat(64);
+        BigInteger previousOnChainId = BigInteger.valueOf(50);
+        BigInteger correctedOnChainId = BigInteger.valueOf(51);
+
+        DoctorProfile doctor = eligibleDoctor(userId);
+        HealthcareFacility facility = doctor.getHealthcareFacility();
+        User doctorUser = doctor.getUser();
+        User patientUser = mock(User.class);
+        PatientProfile patient = mock(PatientProfile.class);
+        MedicalRecord previous = mock(MedicalRecord.class);
+        MedicalFile file = mock(MedicalFile.class);
+        WalletAddress doctorWallet = mock(WalletAddress.class);
+        WalletAddress patientWallet = mock(WalletAddress.class);
+
+        when(patientUser.getId()).thenReturn(patientUserId);
+        when(patient.getId()).thenReturn(patientId);
+        when(patient.getUser()).thenReturn(patientUser);
+        when(previous.getStatus()).thenReturn(MedicalRecordStatus.ACTIVE);
+        when(previous.getPatientProfile()).thenReturn(patient);
+        when(previous.getOnChainRecordId()).thenReturn(previousOnChainId);
+        when(records.findLockedById(recordId)).thenReturn(Optional.of(previous));
+        when(doctors.findByUserId(userId)).thenReturn(Optional.of(doctor));
+        when(access.canDoctorAccessPatient(userId, patientId)).thenReturn(true);
+
+        when(file.getId()).thenReturn(fileId);
+        when(file.getUploadedBy()).thenReturn(doctorUser);
+        when(file.getPatientProfile()).thenReturn(patient);
+        when(file.getSourceType()).thenReturn(MedicalRecordSourceType.DOCTOR_UPLOADED);
+        when(file.getHealthcareFacility()).thenReturn(facility);
+        when(file.getCid()).thenReturn("bafy-correction");
+        when(file.getContentHash()).thenReturn("b".repeat(64));
+        when(files.findById(fileId)).thenReturn(Optional.of(file));
+        when(recordFiles.existsByMedicalFileId(fileId)).thenReturn(false);
+
+        when(doctorWallet.getAddress()).thenReturn(doctorWalletAddress);
+        when(patientWallet.getAddress()).thenReturn(patientWalletAddress);
+        when(wallets.findFirstByUserIdOrderByIdAsc(userId)).thenReturn(Optional.of(doctorWallet));
+        when(wallets.findFirstByUserIdOrderByIdAsc(patientUserId)).thenReturn(Optional.of(patientWallet));
+
+        var expected = new BlockchainService.PreparedTransaction(
+                doctorWalletAddress, "0x" + "3".repeat(40), "0xexpected",
+                BigInteger.valueOf(31337), "0x0");
+        when(blockchain.prepareRecordVersionTransaction(
+                doctorWalletAddress, previousOnChainId, file.getCid(), file.getContentHash(), "BV001"))
+                .thenReturn(expected);
+        when(blockchain.getRecordTransaction(transactionHash)).thenReturn(new BlockchainService.RecordTransaction(
+                transactionHash,
+                doctorWalletAddress,
+                expected.to(),
+                "0xtampered",
+                BlockchainService.TransactionState.Status.SUCCESS,
+                BigInteger.ONE,
+                null,
+                null));
+
+        assertThatThrownBy(() -> service.confirmCorrection(
+                userId,
+                recordId,
+                new ConfirmRecordCorrectionRequest(
+                        fileId, correctedOnChainId, transactionHash, "Wrong diagnosis")))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("does not match");
+
+        verify(blockchain, never()).getRecord(any(), anyString());
+        verify(records, never()).save(any());
+    }
+
+    private DoctorProfile eligibleDoctor(long userId) {
+        User doctorUser = mock(User.class);
+        HealthcareFacility facility = mock(HealthcareFacility.class);
+        DoctorProfile doctor = mock(DoctorProfile.class);
+        when(doctorUser.getId()).thenReturn(userId);
+        when(facility.getId()).thenReturn(61L);
+        when(facility.getFacilityId()).thenReturn("BV001");
+        when(facility.isActive()).thenReturn(true);
+        when(doctor.getUser()).thenReturn(doctorUser);
+        when(doctor.getHealthcareFacility()).thenReturn(facility);
+        when(doctor.isVerified()).thenReturn(true);
+        return doctor;
     }
 }

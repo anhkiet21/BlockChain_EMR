@@ -98,6 +98,34 @@ describe("MedicalRecordRegistry", function () {
       .to.be.revertedWithCustomError(registry, "RecordAlreadySuperseded").withArgs(0);
   });
 
+  it("creates a facility-authorized correction with doctor metadata", async function () {
+    const { registry, patient, doctor } = await fixture();
+    await registry.setFacilityStatus(facilityId, true);
+    await registry.connect(patient).createRecordWithMetadata(
+      patient.address, cidV1, hashV1, 1, ethers.ZeroHash
+    );
+
+    await expect(registry.connect(doctor).createRecordVersionWithMetadata(
+      0, cidV2, hashV2, facilityId
+    )).to.be.revertedWithCustomError(registry, "AccessDenied");
+
+    await registry.connect(patient).grantFacilityAccess(facilityId);
+    await expect(registry.connect(doctor).createRecordVersionWithMetadata(
+      0, cidV2, hashV2, facilityId
+    )).to.emit(registry, "RecordVersionCreated").withArgs(0, 1);
+
+    const corrected = await registry.connect(patient).getRecord(1);
+    const metadata = await registry.connect(patient).getRecordMetadata(1);
+    expect(corrected.previousRecordId).to.equal(0);
+    expect(metadata.sourceType).to.equal(2);
+    expect(metadata.uploaderWallet).to.equal(doctor.address);
+    expect(metadata.facilityId).to.equal(facilityId);
+
+    await expect(registry.connect(doctor).createRecordVersionWithMetadata(
+      0, "bafy-branch", hashV2, facilityId
+    )).to.be.revertedWithCustomError(registry, "RecordAlreadySuperseded");
+  });
+
   it("enforces authorization for create, read and version after revocation", async function () {
     const { registry, patient, doctor, stranger } = await fixture();
     await expect(registry.connect(stranger).createRecord(patient.address, cidV1, hashV1))

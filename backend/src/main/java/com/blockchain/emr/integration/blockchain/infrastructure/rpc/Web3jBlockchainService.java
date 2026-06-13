@@ -114,6 +114,30 @@ public class Web3jBlockchainService implements BlockchainService {
     }
 
     @Override
+    public PreparedTransaction prepareRecordVersionTransaction(
+            String uploaderWallet,
+            BigInteger previousRecordId,
+            String cid,
+            String contentHash,
+            String facilityId) {
+        validateAddress(uploaderWallet);
+        if (previousRecordId == null || previousRecordId.signum() < 0) {
+            throw BlockchainException.readFailed();
+        }
+        Function function = new Function(
+                "createRecordVersionWithMetadata",
+                List.of(
+                        new org.web3j.abi.datatypes.generated.Uint256(previousRecordId),
+                        new Utf8String(cid),
+                        new org.web3j.abi.datatypes.generated.Bytes32(hashBytes(contentHash)),
+                        new org.web3j.abi.datatypes.generated.Bytes32(facilityBytes(facilityId))),
+                List.of());
+        BigInteger chainId = execute(() -> web3j.ethChainId().send().getChainId());
+        return new PreparedTransaction(normalize(uploaderWallet), contractAddress,
+                FunctionEncoder.encode(function), chainId, "0x0");
+    }
+
+    @Override
     public AccessTransaction getAccessTransaction(String transactionHash) {
         validateTransactionHash(transactionHash);
         Transaction transaction = execute(() -> web3j.ethGetTransactionByHash(transactionHash).send().getTransaction())

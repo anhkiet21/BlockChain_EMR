@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.time.Instant;
 
 import com.blockchain.emr.medicalrecord.domain.MedicalRecordSourceType;
+import com.blockchain.emr.medicalrecord.domain.MedicalRecordStatus;
 
 public record UnifiedMedicalRecordResponse(
         Long recordId,
@@ -21,6 +22,11 @@ public record UnifiedMedicalRecordResponse(
         String facilityName,
         BigInteger onChainRecordId,
         String blockchainTxHash,
+        MedicalRecordStatus status,
+        Long previousRecordId,
+        Long successorRecordId,
+        String correctionReason,
+        Instant correctedAt,
         Instant createdAt) {
 }
 

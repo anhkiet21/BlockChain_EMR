@@ -178,6 +178,28 @@ contract MedicalRecordRegistry {
         emit RecordVersionCreated(previousRecordId, recordId);
     }
 
+    function createRecordVersionWithMetadata(
+        uint256 previousRecordId,
+        string calldata cid,
+        bytes32 contentHash,
+        bytes32 facilityId
+    ) external returns (uint256 recordId) {
+        Record storage previous = _existingRecord(previousRecordId);
+        if (!activeFacilities[facilityId]
+            || !facilityAccessGrants[previous.patient][facilityId]) {
+            revert AccessDenied(previous.patient, msg.sender);
+        }
+        if (successorRecordIds[previousRecordId] != 0) {
+            revert RecordAlreadySuperseded(previousRecordId);
+        }
+
+        recordId = _createRecord(previous.patient, cid, contentHash, previousRecordId);
+        recordMetadata[recordId] = RecordMetadata(SourceType.DOCTOR_UPLOADED, msg.sender, facilityId);
+        successorRecordIds[previousRecordId] = recordId + 1;
+        emit RecordMetadataCreated(recordId, SourceType.DOCTOR_UPLOADED, msg.sender, facilityId);
+        emit RecordVersionCreated(previousRecordId, recordId);
+    }
+
     function getRecord(uint256 recordId) external view returns (Record memory) {
         Record storage record = _existingRecord(recordId);
         _requireRecordAuthorized(recordId, record, msg.sender);

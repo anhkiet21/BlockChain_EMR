@@ -13,6 +13,9 @@ public interface BlockchainService {
     PreparedTransaction prepareRecordTransaction(
             String uploaderWallet, String patientWallet, String cid, String contentHash,
             String sourceType, String facilityId);
+    PreparedTransaction prepareRecordVersionTransaction(
+            String uploaderWallet, BigInteger previousRecordId, String cid, String contentHash,
+            String facilityId);
     AccessTransaction getAccessTransaction(String transactionHash);
     FacilityAccessTransaction getFacilityAccessTransaction(String transactionHash);
     RecordTransaction getRecordTransaction(String transactionHash);

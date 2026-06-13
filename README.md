@@ -231,6 +231,23 @@ Sau khi quyền bị thu hồi, bác sĩ thuộc cơ sở đó không thể xem 
 3. Mọi lần kiểm tra sau đó phải thấy cả database và blockchain đều không còn quyền.
 4. Quản trị viên xem được lịch sử cấp/thu hồi, hồ sơ đã tải lên, CID/hash, mã giao dịch và thời gian.
 
+### 9. Bác sĩ đính chính bệnh án
+
+1. Bác sĩ chọn một hồ sơ đang ở trạng thái `ACTIVE` và nhập lý do đính chính bắt buộc.
+2. Backend kiểm tra lại bác sĩ, cơ sở y tế, ví liên kết và quyền facility của bệnh nhân.
+3. Tệp mới được kiểm tra, mã hóa AES-256-GCM và tải ciphertext lên IPFS.
+4. Ví bác sĩ ký `createRecordVersionWithMetadata(previousRecordId, cid, hash, facilityId)`.
+5. Contract chỉ tạo phiên bản mới nếu cơ sở đang hoạt động, bệnh nhân vẫn cấp quyền và bản cũ
+   chưa có phiên bản kế tiếp.
+6. Backend xác minh transaction, event, CID/hash, ví bác sĩ, bệnh nhân, mã cơ sở và
+   `previousRecordId`.
+7. Database chuyển bản cũ sang `CORRECTED`, giữ nguyên CID/hash cũ và tạo bản mới ở trạng thái
+   `ACTIVE`.
+8. Bệnh nhân và bác sĩ vẫn xem được bản cũ, bản mới, lý do đính chính và quan hệ phiên bản.
+
+Hệ thống không ghi đè hoặc xóa bệnh án cũ. Mỗi phiên bản chỉ có tối đa một phiên bản kế tiếp,
+vì vậy hai yêu cầu đính chính đồng thời không thể tạo hai nhánh hợp lệ.
+
 Nếu người dùng từ chối MetaMask hoặc giao dịch thất bại, hồ sơ chưa được xác nhận sẽ không trở
 thành bệnh án chính thức. Tác vụ dọn dẹp định kỳ xử lý ciphertext mồ côi sau thời gian lưu tạm.
 

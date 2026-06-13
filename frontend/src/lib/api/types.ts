@@ -52,7 +52,9 @@ export type UnifiedMedicalRecord = {
   recordId: number; patientProfileId: number; medicalFileId: number; originalFileName: string; mimeType: string;
   fileSize: number; cid: string; contentHash: string; sourceType: "PATIENT_UPLOADED" | "DOCTOR_UPLOADED";
   uploaderName: string; uploadedByWallet: string; facilityId?: string; facilityName?: string;
-  onChainRecordId: string; blockchainTxHash: string; createdAt: string;
+  onChainRecordId: string; blockchainTxHash: string; status: "ACTIVE" | "CORRECTED" | "CANCELLED";
+  previousRecordId?: number; successorRecordId?: number; correctionReason?: string; correctedAt?: string;
+  createdAt: string;
 };
 
 export type RecordAuditLog = {

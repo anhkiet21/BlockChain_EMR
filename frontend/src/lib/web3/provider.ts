@@ -9,6 +9,7 @@ export const registryAbi = [
   "error InvalidFacility()",
   "function createRecord(address patient,string cid,bytes32 contentHash) returns (uint256)",
   "function createRecordVersion(uint256 previousRecordId,string cid,bytes32 contentHash) returns (uint256)",
+  "function createRecordVersionWithMetadata(uint256 previousRecordId,string cid,bytes32 contentHash,bytes32 facilityId) returns (uint256)",
   "event RecordCreated(uint256 indexed recordId,address indexed patient,address indexed author,string cid,bytes32 contentHash,uint256 previousRecordId)",
   "function createRecordWithMetadata(address patient,string cid,bytes32 contentHash,uint8 sourceType,bytes32 facilityId) returns (uint256)",
 ] as const;
@@ -144,6 +145,7 @@ export async function createOnChainRecordVersion(
   doctorWallet: string,
   cid: string,
   contentHash: string,
+  facilityId: string,
 ) {
   const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
   if (!contractAddress || !ethers.isAddress(contractAddress)) {
@@ -155,7 +157,8 @@ export async function createOnChainRecordVersion(
   }
   const contract = new Contract(contractAddress, registryAbi, signer);
   const hash = contentHash.startsWith("0x") ? contentHash : `0x${contentHash}`;
-  const receipt = await contract.createRecordVersion(previousRecordId, cid, hash)
+  const encodedFacilityId = ethers.encodeBytes32String(facilityId);
+  const receipt = await contract.createRecordVersionWithMetadata(previousRecordId, cid, hash, encodedFacilityId)
     .then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
   const parser = new Interface(registryAbi);
   for (const log of receipt.logs) {
