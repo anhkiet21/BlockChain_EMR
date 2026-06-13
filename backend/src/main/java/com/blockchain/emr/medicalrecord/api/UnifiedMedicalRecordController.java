@@ -25,6 +25,7 @@ import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordRequest;
 import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordCorrectionRequest;
 import com.blockchain.emr.medicalrecord.api.dto.PendingRecordUploadResponse;
 import com.blockchain.emr.medicalrecord.api.dto.RecordAuditLogResponse;
+import com.blockchain.emr.medicalrecord.api.dto.RecordIntegrityResponse;
 import com.blockchain.emr.medicalrecord.api.dto.UnifiedMedicalRecordResponse;
 import com.blockchain.emr.medicalrecord.application.MedicalFileService;
 import com.blockchain.emr.medicalrecord.application.UnifiedMedicalRecordService;
@@ -66,6 +67,13 @@ public class UnifiedMedicalRecordController {
             @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable Long recordId) {
         return ApiResponse.success(service.patientAuditLogs(user.id(), recordId));
+    }
+
+    @GetMapping("/patient/records/{recordId}/integrity")
+    ApiResponse<RecordIntegrityResponse> patientIntegrity(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long recordId) {
+        return ApiResponse.success(service.patientIntegrity(user.id(), recordId));
     }
 
     @PostMapping(path = "/doctor/records", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

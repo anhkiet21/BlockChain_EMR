@@ -1,6 +1,7 @@
 package com.blockchain.emr.medicalrecord.application;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
@@ -23,11 +24,13 @@ import com.blockchain.emr.common.exception.ErrorCode;
 import com.blockchain.emr.common.exception.ResourceNotFoundException;
 import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainException;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordRequest;
 import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordCorrectionRequest;
 import com.blockchain.emr.medicalrecord.api.dto.PendingRecordUploadResponse;
 import com.blockchain.emr.medicalrecord.api.dto.RecordAuditLogResponse;
+import com.blockchain.emr.medicalrecord.api.dto.RecordIntegrityResponse;
 import com.blockchain.emr.medicalrecord.api.dto.UnifiedMedicalRecordResponse;
 import com.blockchain.emr.medicalrecord.domain.MedicalFile;
 import com.blockchain.emr.medicalrecord.domain.MedicalRecord;
@@ -368,6 +371,77 @@ public class UnifiedMedicalRecordService {
         return logs.findAllByMedicalRecordIdOrderByCreatedAtDescIdDesc(recordId).stream()
                 .map(this::auditResponse)
                 .toList();
+    }
+
+    @Transactional
+    @PreAuthorize("hasRole('PATIENT') and #userId == authentication.principal.id")
+    public RecordIntegrityResponse patientIntegrity(Long userId, Long recordId) {
+        MedicalRecord record = records.findById(recordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        if (!record.getPatientProfile().getUser().getId().equals(userId)) {
+            throw new AccessDeniedException("Medical record does not belong to the current patient");
+        }
+        MedicalFile file = recordFiles.findAllByMedicalRecordId(recordId).stream()
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Medical file not found"))
+                .getMedicalFile();
+        String patientWallet = requireWallet(userId).getAddress();
+        BlockchainService.OnChainRecord onChain = null;
+        boolean blockchainReadable = true;
+        try {
+            onChain = blockchain.getRecord(record.getOnChainRecordId(), patientWallet);
+        } catch (BlockchainException exception) {
+            blockchainReadable = false;
+        }
+
+        String computedHash = null;
+        boolean storageReadable = true;
+        try {
+            computedHash = fileService.computeCurrentPlaintextHash(file);
+        } catch (RuntimeException exception) {
+            storageReadable = false;
+        }
+
+        boolean cidMatches = blockchainReadable && equalsIgnoreCase(record.getCid(), onChain.cid());
+        boolean databaseHashMatchesOnChain = blockchainReadable
+                && normalizeHash(record.getContentHash()).equals(normalizeHash(onChain.contentHash()));
+        boolean computedHashMatchesOnChain = blockchainReadable
+                && storageReadable
+                && normalizeHash(computedHash).equals(normalizeHash(onChain.contentHash()));
+        boolean valid = storageReadable && blockchainReadable
+                && cidMatches && databaseHashMatchesOnChain && computedHashMatchesOnChain;
+
+        logs.save(new RecordAccessLog(record, file, requireUser(userId), "INTEGRITY_CHECK"));
+        return new RecordIntegrityResponse(
+                record.getId(),
+                file.getId(),
+                valid,
+                valid ? "VALID" : blockchainReadable ? "TAMPERED" : "ON_CHAIN_UNREADABLE",
+                integrityMessage(valid, storageReadable, blockchainReadable),
+                storageReadable,
+                blockchainReadable,
+                cidMatches,
+                databaseHashMatchesOnChain,
+                computedHashMatchesOnChain,
+                record.getCid(),
+                blockchainReadable ? onChain.cid() : null,
+                normalizeHash(record.getContentHash()),
+                blockchainReadable ? normalizeHash(onChain.contentHash()) : null,
+                storageReadable ? normalizeHash(computedHash) : null,
+                Instant.now());
+    }
+
+    private String integrityMessage(boolean valid, boolean storageReadable, boolean blockchainReadable) {
+        if (valid) {
+            return "Bệnh án toàn vẹn";
+        }
+        if (!blockchainReadable) {
+            return "Không đọc được dữ liệu on-chain của bệnh án";
+        }
+        if (!storageReadable) {
+            return "Không đọc hoặc giải mã được file bệnh án";
+        }
+        return "Bệnh án có dấu hiệu bị thay đổi";
     }
 
     private void verifyOnChain(

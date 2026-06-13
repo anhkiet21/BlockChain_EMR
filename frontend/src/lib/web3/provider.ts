@@ -20,6 +20,17 @@ type EthereumProvider = {
   removeListener?(event: string, listener: (...args: unknown[]) => void): void;
 };
 
+type WalletError = {
+  code?: number | string;
+  message?: string;
+  shortMessage?: string;
+  reason?: string;
+  action?: string;
+  data?: string;
+  error?: WalletError;
+  info?: { error?: WalletError };
+};
+
 declare global {
   interface Window {
     ethereum?: EthereumProvider;
@@ -70,13 +81,28 @@ export async function sendPreparedTransaction(transaction: {
   return receipt;
 }
 
+function isUserRejected(error: WalletError) {
+  const code = error?.code ?? error?.error?.code ?? error?.info?.error?.code;
+  const text = [
+    error?.message,
+    error?.shortMessage,
+    error?.reason,
+    error?.action,
+    error?.error?.message,
+    error?.info?.error?.message,
+  ].filter(Boolean).join(" ").toLowerCase();
+  return code === 4001
+    || code === "4001"
+    || text.includes("user rejected")
+    || text.includes("action_rejected")
+    || text.includes("rejected")
+    || text.includes("denied");
+}
+
 function readableContractError(error: unknown) {
-  const candidate = error as {
-    data?: string;
-    shortMessage?: string;
-    info?: { error?: { data?: string } };
-  };
-  const data = candidate?.data ?? candidate?.info?.error?.data;
+  const candidate = error as WalletError;
+  if (isUserRejected(candidate)) return "Bạn đã từ chối giao dịch trên MetaMask.";
+  const data = candidate?.data ?? candidate?.info?.error?.data ?? candidate?.error?.data;
   if (data) {
     try {
       const parsed = new Interface(registryAbi).parseError(data);
@@ -88,7 +114,10 @@ function readableContractError(error: unknown) {
       // Fall through to the wallet-provided message for unknown contract errors.
     }
   }
-  return candidate?.shortMessage ?? (error instanceof Error ? error.message : "Giao dịch thất bại.");
+  const message = candidate?.shortMessage ?? candidate?.reason ?? candidate?.message
+    ?? (error instanceof Error ? error.message : undefined);
+  if (message && !message.trim().startsWith("{")) return message;
+  return "Giao dịch thất bại. Vui lòng kiểm tra MetaMask và thử lại.";
 }
 
 export async function createOnChainRecord(patientWallet: string, doctorWallet: string, cid: string, contentHash: string) {
@@ -102,7 +131,14 @@ export async function createOnChainRecord(patientWallet: string, doctorWallet: s
   }
   const contract = new Contract(contractAddress, registryAbi, signer);
   const hash = contentHash.startsWith("0x") ? contentHash : `0x${contentHash}`;
-  const receipt = await contract.createRecord(patientWallet, cid, hash).then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
+  let receipt: TransactionReceipt | null;
+  try {
+    receipt = await contract.createRecord(patientWallet, cid, hash)
+      .then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
+  } catch (error) {
+    throw new Error(readableContractError(error));
+  }
+  if (!receipt) throw new Error("Không nhận được kết quả giao dịch.");
   const parser = new Interface(registryAbi);
   for (const log of receipt.logs) {
     try {
@@ -127,9 +163,15 @@ export async function createOnChainRecordWithMetadata(input: {
   const hash = input.contentHash.startsWith("0x") ? input.contentHash : `0x${input.contentHash}`;
   const sourceType = input.sourceType === "PATIENT_UPLOADED" ? 1 : 2;
   const facilityId = input.facilityId ? ethers.encodeBytes32String(input.facilityId) : ethers.ZeroHash;
-  const receipt = await contract.createRecordWithMetadata(
-    input.patientWallet, input.cid, hash, sourceType, facilityId,
-  ).then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
+  let receipt: TransactionReceipt | null;
+  try {
+    receipt = await contract.createRecordWithMetadata(
+      input.patientWallet, input.cid, hash, sourceType, facilityId,
+    ).then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
+  } catch (error) {
+    throw new Error(readableContractError(error));
+  }
+  if (!receipt) throw new Error("Không nhận được kết quả giao dịch.");
   const parser = new Interface(registryAbi);
   for (const log of receipt.logs) {
     try {
@@ -158,8 +200,14 @@ export async function createOnChainRecordVersion(
   const contract = new Contract(contractAddress, registryAbi, signer);
   const hash = contentHash.startsWith("0x") ? contentHash : `0x${contentHash}`;
   const encodedFacilityId = ethers.encodeBytes32String(facilityId);
-  const receipt = await contract.createRecordVersionWithMetadata(previousRecordId, cid, hash, encodedFacilityId)
-    .then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
+  let receipt: TransactionReceipt | null;
+  try {
+    receipt = await contract.createRecordVersionWithMetadata(previousRecordId, cid, hash, encodedFacilityId)
+      .then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
+  } catch (error) {
+    throw new Error(readableContractError(error));
+  }
+  if (!receipt) throw new Error("Không nhận được kết quả giao dịch.");
   const parser = new Interface(registryAbi);
   for (const log of receipt.logs) {
     try {

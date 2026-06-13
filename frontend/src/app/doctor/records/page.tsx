@@ -5,6 +5,7 @@ import { AccessState } from "@/components/access-state";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
 import { apiDownload, apiFetch } from "@/lib/api/client";
 import { DoctorProfile, Page, PatientSummary, PendingRecordUpload, UnifiedMedicalRecord } from "@/lib/api/types";
+import { friendlyErrorMessage } from "@/lib/errors";
 import { createOnChainRecordVersion, createOnChainRecordWithMetadata } from "@/lib/web3/provider";
 
 export default function DoctorRecordsPage() {
@@ -30,7 +31,7 @@ export default function DoctorRecordsPage() {
 
   useEffect(() => {
     if (access === "allowed") {
-      apiFetch<DoctorProfile>("/doctors/me").then(setDoctor).catch((error) => setMessage(error.message));
+      apiFetch<DoctorProfile>("/doctors/me").then(setDoctor).catch((error) => setMessage(friendlyErrorMessage(error, "Không tải được hồ sơ bác sĩ")));
     }
   }, [access]);
 
@@ -59,7 +60,7 @@ export default function DoctorRecordsPage() {
       setPatientHasAccess(null);
       setRecords([]);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Tìm kiếm thất bại");
+      setMessage(friendlyErrorMessage(error, "Tìm kiếm thất bại"));
     } finally {
       setLoadingPatients(false);
     }
@@ -76,7 +77,7 @@ export default function DoctorRecordsPage() {
       setPatientHasAccess(null);
       setRecords([]);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không tải được danh sách bệnh nhân đã cấp quyền");
+      setMessage(friendlyErrorMessage(error, "Không tải được danh sách bệnh nhân đã cấp quyền"));
     } finally {
       setLoadingPatients(false);
     }
@@ -88,7 +89,7 @@ export default function DoctorRecordsPage() {
       await apiFetch("/doctor/access-requests", { method: "POST", body: JSON.stringify({ patientIdentifier: patient.patientCode, reason }) });
       setMessage("Đã gửi yêu cầu truy cập cho bệnh nhân.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không gửi được yêu cầu");
+      setMessage(friendlyErrorMessage(error, "Không gửi được yêu cầu"));
     }
   }
 
@@ -103,7 +104,7 @@ export default function DoctorRecordsPage() {
     } catch (error) {
       setRecords([]);
       setPatientHasAccess(false);
-      setMessage(error instanceof Error ? error.message : "Chưa có quyền truy cập");
+      setMessage(friendlyErrorMessage(error, "Chưa có quyền truy cập"));
     }
   }
 
@@ -123,7 +124,7 @@ export default function DoctorRecordsPage() {
       setMessage("Đã tải hồ sơ bệnh án lên thành công.");
       await loadRecords();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Tải hồ sơ lên thất bại");
+      setMessage(friendlyErrorMessage(error, "Tải hồ sơ lên thất bại"));
     } finally {
       setBusy(false);
     }
@@ -174,7 +175,7 @@ export default function DoctorRecordsPage() {
       setCorrectionReason("");
       await loadRecords();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không thể tạo bản đính chính");
+      setMessage(friendlyErrorMessage(error, "Không thể tạo bản đính chính"));
     } finally {
       setCorrectionBusy(false);
     }

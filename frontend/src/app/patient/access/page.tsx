@@ -5,6 +5,7 @@ import { AccessState } from "@/components/access-state";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
 import { apiFetch, getSession } from "@/lib/api/client";
 import { Facility, FacilityAccessCheck, FacilityAccessRequest, Page, PreparedFacilityTransaction } from "@/lib/api/types";
+import { friendlyErrorMessage } from "@/lib/errors";
 import { sendPreparedTransaction } from "@/lib/web3/provider";
 
 export default function PatientAccessPage() {
@@ -45,7 +46,7 @@ export default function PatientAccessPage() {
       }
       setAccessReady(true);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không tải được dữ liệu");
+      setMessage(friendlyErrorMessage(error, "Không tải được dữ liệu"));
     }
   }
 
@@ -69,7 +70,7 @@ export default function PatientAccessPage() {
       setMessage(granted ? "Đã cấp quyền cho cơ sở y tế." : "Đã thu hồi quyền.");
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Giao dịch thất bại");
+      setMessage(friendlyErrorMessage(error, "Giao dịch thất bại"));
     } finally {
       setBusy("");
     }
@@ -81,7 +82,7 @@ export default function PatientAccessPage() {
       setMessage("Đã từ chối yêu cầu.");
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không thể từ chối");
+      setMessage(friendlyErrorMessage(error, "Không thể từ chối"));
     }
   }
 

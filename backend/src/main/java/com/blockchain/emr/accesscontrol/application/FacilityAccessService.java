@@ -73,12 +73,16 @@ public class FacilityAccessService {
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
         requireWallet(patient.getUser().getId());
         var facility = doctor.getHealthcareFacility();
-        if (canDoctorAccessPatient(doctorUserId, patient.getId())) {
-            throw new ApplicationException(ErrorCode.CONFLICT, "Facility already has patient access");
+        if (grants.existsByPatientProfileIdAndFacilityIdAndActiveTrue(patient.getId(), facility.getId())) {
+            throw new ApplicationException(
+                    ErrorCode.CONFLICT,
+                    "Cơ sở y tế đã được cấp quyền truy cập hồ sơ bệnh nhân này.");
         }
         if (requests.existsByPatientProfileIdAndFacilityIdAndStatus(
                 patient.getId(), facility.getId(), FacilityAccessRequestStatus.PENDING)) {
-            throw new ApplicationException(ErrorCode.CONFLICT, "A pending request already exists");
+            throw new ApplicationException(
+                    ErrorCode.CONFLICT,
+                    "Cơ sở y tế đã gửi yêu cầu truy cập và đang chờ bệnh nhân phản hồi.");
         }
         return response(requests.save(new FacilityAccessRequest(
                 patient, facility, doctor, request.reason())));
@@ -133,8 +137,8 @@ public class FacilityAccessService {
         boolean currentlyGranted = blockchain.hasFacilityAccess(patientWallet, facility.getFacilityId());
         if (currentlyGranted == request.granted()) {
             String message = request.granted()
-                    ? "Facility access is already granted on blockchain"
-                    : "Facility access is already revoked on blockchain";
+                    ? "Cơ sở y tế đã được cấp quyền trên blockchain."
+                    : "Cơ sở y tế đã được thu hồi quyền trên blockchain.";
             throw new ApplicationException(ErrorCode.CONFLICT, message);
         }
         var prepared = blockchain.prepareFacilityAccessTransaction(

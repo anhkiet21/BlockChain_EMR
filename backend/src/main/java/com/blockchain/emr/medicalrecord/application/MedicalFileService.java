@@ -134,11 +134,19 @@ public class MedicalFileService {
     }
 
     public DownloadedMedicalFile download(MedicalFile file) {
-        byte[] plaintext = encryptionService.decrypt(storageService.retrieve(file.getCid()), file.getEncryptionIv());
+        byte[] plaintext = decrypt(file);
         if (!sha256(plaintext).equals(file.getContentHash())) {
             throw new IllegalStateException("Medical file integrity check failed");
         }
         return new DownloadedMedicalFile(file.getOriginalFilename(), file.getContentType(), plaintext);
+    }
+
+    public String computeCurrentPlaintextHash(MedicalFile file) {
+        return sha256(decrypt(file));
+    }
+
+    private byte[] decrypt(MedicalFile file) {
+        return encryptionService.decrypt(storageService.retrieve(file.getCid()), file.getEncryptionIv());
     }
 
     private void validate(MultipartFile file) {

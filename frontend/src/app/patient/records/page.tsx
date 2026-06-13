@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { AccessState } from "@/components/access-state";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
 import { apiDownload, apiFetch } from "@/lib/api/client";
-import { Page, PendingRecordUpload, RecordAuditLog, UnifiedMedicalRecord } from "@/lib/api/types";
+import { Page, PendingRecordUpload, RecordAuditLog, RecordIntegrity, UnifiedMedicalRecord } from "@/lib/api/types";
+import { friendlyErrorMessage } from "@/lib/errors";
 import { createOnChainRecordWithMetadata } from "@/lib/web3/provider";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -16,6 +17,8 @@ const ACTION_LABELS: Record<string, string> = {
   CORRECT: "Tạo bản sửa",
 };
 
+ACTION_LABELS.INTEGRITY_CHECK = "Kiểm tra toàn vẹn";
+
 export default function PatientRecordsPage() {
   const access = useRequiredRole("PATIENT");
   const [records, setRecords] = useState<UnifiedMedicalRecord[]>([]);
@@ -25,6 +28,7 @@ export default function PatientRecordsPage() {
   const [historyRecord, setHistoryRecord] = useState<UnifiedMedicalRecord | null>(null);
   const [historyLogs, setHistoryLogs] = useState<RecordAuditLog[]>([]);
   const [historyBusy, setHistoryBusy] = useState(false);
+  const [integrity, setIntegrity] = useState<RecordIntegrity | null>(null);
 
   useEffect(() => {
     if (access === "allowed") load();
@@ -34,7 +38,7 @@ export default function PatientRecordsPage() {
     try {
       setRecords((await apiFetch<Page<UnifiedMedicalRecord>>("/patient/records")).content);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không tải được hồ sơ");
+      setMessage(friendlyErrorMessage(error, "Không tải được hồ sơ"));
     }
   }
 
@@ -56,7 +60,7 @@ export default function PatientRecordsPage() {
       setFile(null);
       await load();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Tải hồ sơ lên thất bại");
+      setMessage(friendlyErrorMessage(error, "Tải hồ sơ lên thất bại"));
     } finally {
       setBusy(false);
     }
@@ -72,7 +76,7 @@ export default function PatientRecordsPage() {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không thể tải tệp");
+      setMessage(friendlyErrorMessage(error, "Không thể tải tệp"));
     }
   }
 
@@ -84,9 +88,21 @@ export default function PatientRecordsPage() {
       setHistoryLogs(await apiFetch<RecordAuditLog[]>(`/patient/records/${record.recordId}/audit-logs`));
     } catch (error) {
       setHistoryLogs([]);
-      setMessage(error instanceof Error ? error.message : "Không tải được lịch sử hoạt động");
+      setMessage(friendlyErrorMessage(error, "Không tải được lịch sử hoạt động"));
     } finally {
       setHistoryBusy(false);
+    }
+  }
+
+  async function checkIntegrity(record: UnifiedMedicalRecord) {
+    setMessage("");
+    try {
+      const result = await apiFetch<RecordIntegrity>(`/patient/records/${record.recordId}/integrity`);
+      setIntegrity(result);
+      setMessage(integrityTitle(result));
+      if (historyRecord?.recordId === record.recordId) await loadHistory(record);
+    } catch (error) {
+      setMessage(friendlyErrorMessage(error, "Không kiểm tra được tính toàn vẹn"));
     }
   }
 
@@ -141,6 +157,7 @@ export default function PatientRecordsPage() {
                 <td>
                   <div className="flex flex-wrap gap-2">
                     <button className="btn-secondary" onClick={() => loadHistory(record)}>Xem lịch sử</button>
+                    <button className="btn-secondary" onClick={() => checkIntegrity(record)}>Kiểm tra toàn vẹn</button>
                     <button className="btn-secondary" onClick={() => download(record)}>Tải xuống</button>
                   </div>
                 </td>
@@ -150,6 +167,35 @@ export default function PatientRecordsPage() {
           </tbody>
         </table>
       </div>
+
+      {integrity && (
+        <section className={integrity.valid ? "card border-emerald-100 bg-emerald-50/50" : "card border-red-100 bg-red-50/70"}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className={integrity.valid ? "badge border-emerald-200 bg-emerald-100 text-emerald-900" : "badge border-red-200 bg-red-100 text-red-900"}>
+                {integrity.valid ? "Toàn vẹn" : "Cảnh báo"}
+              </p>
+              <h2 className="mt-3 text-2xl font-black">{integrityTitle(integrity)}</h2>
+              <p className="mt-2 muted">Kiểm tra lần cuối: {new Date(integrity.checkedAt).toLocaleString("vi-VN")}</p>
+            </div>
+            <span className="rounded-full bg-white px-4 py-2 text-sm font-black text-slate-700">Record #{integrity.recordId}</span>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <IntegrityItem label="Đọc IPFS" ok={integrity.storageReadable} />
+            <IntegrityItem label="Đọc on-chain" ok={integrity.blockchainReadable} />
+            <IntegrityItem label="CID khớp on-chain" ok={integrity.cidMatches} />
+            <IntegrityItem label="Hash DB khớp on-chain" ok={integrity.databaseHashMatchesOnChain} />
+            <IntegrityItem label="Hash file khớp on-chain" ok={integrity.computedHashMatchesOnChain} />
+          </div>
+          <div className="mt-5 grid gap-3 text-xs md:grid-cols-2">
+            <HashBox label="CID trong DB" value={integrity.databaseCid} />
+            <HashBox label="CID on-chain" value={integrity.onChainCid ?? "Không đọc được on-chain"} />
+            <HashBox label="Hash trong DB" value={integrity.databaseHash} />
+            <HashBox label="Hash on-chain" value={integrity.onChainHash ?? "Không đọc được on-chain"} />
+            <HashBox label="Hash tính lại từ file" value={integrity.computedHash ?? "Không đọc được file"} />
+          </div>
+        </section>
+      )}
 
       {historyRecord && (
         <section className="card grid gap-4">
@@ -190,6 +236,33 @@ export default function PatientRecordsPage() {
         </section>
       )}
     </section>
+  );
+}
+
+function integrityTitle(integrity: RecordIntegrity) {
+  if (integrity.valid) return "Bệnh án toàn vẹn";
+  if (integrity.status === "ON_CHAIN_UNREADABLE") {
+    return "Không đọc được dữ liệu on-chain của bệnh án";
+  }
+  if (!integrity.storageReadable) return "Không đọc hoặc giải mã được file bệnh án";
+  return "Bệnh án có dấu hiệu bị thay đổi";
+}
+
+function IntegrityItem({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="rounded-2xl border border-white/70 bg-white p-4">
+      <p className={ok ? "font-black text-emerald-700" : "font-black text-red-700"}>{ok ? "Đạt" : "Không đạt"}</p>
+      <p className="mt-1 text-sm text-slate-600">{label}</p>
+    </div>
+  );
+}
+
+function HashBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <p className="font-bold text-slate-700">{label}</p>
+      <p className="mt-2 break-all font-mono text-slate-600">{value}</p>
+    </div>
   );
 }
 

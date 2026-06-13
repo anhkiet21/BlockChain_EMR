@@ -14,8 +14,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.blockchain.emr.accesscontrol.api.FacilityAccessModels.FacilityAccessChangeRequest;
+import com.blockchain.emr.accesscontrol.api.FacilityAccessModels.CreateAccessRequest;
 import com.blockchain.emr.accesscontrol.application.FacilityAccessService;
 import com.blockchain.emr.auth.domain.User;
 import com.blockchain.emr.auth.domain.WalletAddress;
@@ -43,7 +45,9 @@ class FacilityAccessServiceTests {
             patients, doctors, wallets, facilities, requests, grants, audits, blockchain);
 
     private static final long PATIENT_USER_ID = 7L;
+    private static final long DOCTOR_USER_ID = 9L;
     private static final String PATIENT_WALLET = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
+    private static final String DOCTOR_WALLET = "0x49d84d5163eccfe786ba02b44df43078ed01b13e";
     private HealthcareFacility facility;
 
     @BeforeEach
@@ -51,6 +55,7 @@ class FacilityAccessServiceTests {
         PatientProfile patient = mock(PatientProfile.class);
         WalletAddress wallet = mock(WalletAddress.class);
         facility = new HealthcareFacility("BV001", "Hospital", "Address", null);
+        ReflectionTestUtils.setField(facility, "id", 11L);
         when(patients.findByUserId(PATIENT_USER_ID)).thenReturn(Optional.of(patient));
         when(wallets.findFirstByUserIdOrderByIdAsc(PATIENT_USER_ID)).thenReturn(Optional.of(wallet));
         when(wallet.getAddress()).thenReturn(PATIENT_WALLET);
@@ -65,7 +70,7 @@ class FacilityAccessServiceTests {
         assertThatThrownBy(() -> service.prepare(
                 PATIENT_USER_ID, new FacilityAccessChangeRequest("BV001", true)))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessage("Facility access is already granted on blockchain");
+                .hasMessage("Cơ sở y tế đã được cấp quyền trên blockchain.");
 
         verify(blockchain, never()).prepareFacilityAccessTransaction(anyString(), anyString(), anyBoolean());
     }
@@ -77,7 +82,7 @@ class FacilityAccessServiceTests {
         assertThatThrownBy(() -> service.prepare(
                 PATIENT_USER_ID, new FacilityAccessChangeRequest("BV001", false)))
                 .isInstanceOf(ApplicationException.class)
-                .hasMessage("Facility access is already revoked on blockchain");
+                .hasMessage("Cơ sở y tế đã được thu hồi quyền trên blockchain.");
 
         verify(blockchain, never()).prepareFacilityAccessTransaction(anyString(), anyString(), anyBoolean());
     }
@@ -93,6 +98,35 @@ class FacilityAccessServiceTests {
         service.prepare(PATIENT_USER_ID, new FacilityAccessChangeRequest("BV001", true));
 
         verify(blockchain).prepareFacilityAccessTransaction(PATIENT_WALLET, "BV001", true);
+    }
+
+    @Test
+    void rejectsDuplicatePendingAccessRequest() {
+        createRequestContext();
+        when(requests.existsByPatientProfileIdAndFacilityIdAndStatus(
+                21L, 11L, FacilityAccessRequestStatus.PENDING)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.createRequest(
+                DOCTOR_USER_ID, new CreateAccessRequest("PAT-00000021", "Need treatment history")))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessage("Cơ sở y tế đã gửi yêu cầu truy cập và đang chờ bệnh nhân phản hồi.");
+
+        verify(requests, never()).save(any());
+        verify(wallets).findFirstByUserIdOrderByIdAsc(DOCTOR_USER_ID);
+    }
+
+    @Test
+    void rejectsAccessRequestWhenFacilityAlreadyGranted() {
+        createRequestContext();
+        when(grants.existsByPatientProfileIdAndFacilityIdAndActiveTrue(21L, 11L)).thenReturn(true);
+        when(blockchain.hasFacilityAccess(PATIENT_WALLET, "BV001")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.createRequest(
+                DOCTOR_USER_ID, new CreateAccessRequest("PAT-00000021", "Need treatment history")))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessage("Cơ sở y tế đã được cấp quyền truy cập hồ sơ bệnh nhân này.");
+
+        verify(requests, never()).save(any());
     }
 
     @Test
@@ -115,6 +149,29 @@ class FacilityAccessServiceTests {
                 .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
 
         verify(grants, never()).save(any());
+    }
+
+    private RequestContext createRequestContext() {
+        DoctorProfile doctor = mock(DoctorProfile.class);
+        PatientProfile patient = mock(PatientProfile.class);
+        User patientUser = mock(User.class);
+        WalletAddress doctorWallet = mock(WalletAddress.class);
+        WalletAddress patientWallet = mock(WalletAddress.class);
+
+        when(doctors.findByUserId(DOCTOR_USER_ID)).thenReturn(Optional.of(doctor));
+        when(doctor.isVerified()).thenReturn(true);
+        when(doctor.getHealthcareFacility()).thenReturn(facility);
+        when(patients.findByUserIdentityNumberIgnoreCase("PAT-00000021")).thenReturn(Optional.empty());
+        when(patients.findByPatientCodeIgnoreCase("PAT-00000021")).thenReturn(Optional.of(patient));
+        when(patients.findById(21L)).thenReturn(Optional.of(patient));
+        when(patient.getId()).thenReturn(21L);
+        when(patient.getUser()).thenReturn(patientUser);
+        when(patientUser.getId()).thenReturn(PATIENT_USER_ID);
+        when(wallets.findFirstByUserIdOrderByIdAsc(DOCTOR_USER_ID)).thenReturn(Optional.of(doctorWallet));
+        when(wallets.findFirstByUserIdOrderByIdAsc(PATIENT_USER_ID)).thenReturn(Optional.of(patientWallet));
+        when(doctorWallet.getAddress()).thenReturn(DOCTOR_WALLET);
+        when(patientWallet.getAddress()).thenReturn(PATIENT_WALLET);
+        return new RequestContext(doctorWallet, patientWallet);
     }
 
     @Test
@@ -148,4 +205,6 @@ class FacilityAccessServiceTests {
         assertThat(result.content().get(0).patientCode()).isEqualTo("PAT-00000021");
         verify(grants).findActivePatientsByFacilityId(eq(facilityId), any(Pageable.class));
     }
+
+    private record RequestContext(WalletAddress doctorWallet, WalletAddress patientWallet) {}
 }

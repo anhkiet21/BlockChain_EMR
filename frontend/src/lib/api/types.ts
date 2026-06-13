@@ -62,6 +62,25 @@ export type RecordAuditLog = {
   actorName: string; actorRoles: string[]; facilityId?: string; facilityName?: string; createdAt: string;
 };
 
+export type RecordIntegrity = {
+  recordId: number;
+  medicalFileId: number;
+  valid: boolean;
+  status: "VALID" | "TAMPERED" | "ON_CHAIN_UNREADABLE";
+  message: string;
+  storageReadable: boolean;
+  blockchainReadable: boolean;
+  cidMatches: boolean;
+  databaseHashMatchesOnChain: boolean;
+  computedHashMatchesOnChain: boolean;
+  databaseCid: string;
+  onChainCid?: string;
+  databaseHash: string;
+  onChainHash?: string;
+  computedHash?: string;
+  checkedAt: string;
+};
+
 export type PatientProfile = {
   id: number; userId: number; patientCode: string; email: string; fullName: string; dateOfBirth?: string;
   gender?: string; phone?: string; address?: string; emergencyContactName?: string; emergencyContactPhone?: string; bloodType?: string;
