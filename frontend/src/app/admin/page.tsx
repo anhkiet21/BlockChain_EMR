@@ -20,7 +20,7 @@ const TABS: { id: Tab; label: string; description: string; icon: IconName }[] = 
   { id: "doctors", label: "Bác sĩ chờ xác thực", description: "Duyệt chứng chỉ và tài khoản", icon: "doctor" },
   { id: "patients", label: "Danh sách bệnh nhân", description: "Quản lý trạng thái tài khoản", icon: "patient" },
   { id: "facilities", label: "Cơ sở y tế", description: "Danh mục cơ sở đã cấu hình", icon: "facility" },
-  { id: "audit", label: "Nhật ký blockchain", description: "Theo dõi giao dịch và dữ liệu", icon: "chain" },
+  { id: "audit", label: "Nhật ký hệ thống", description: "Theo dõi giao dịch và dữ liệu xác minh", icon: "chain" },
 ];
 
 function Icon({ name, className = "h-5 w-5" }: { name: IconName; className?: string }) {
@@ -131,16 +131,16 @@ export default function AdminPage() {
     { label: "Chờ xác thực", value: doctors.length, note: "Hồ sơ bác sĩ cần xử lý", icon: "doctor" as IconName, tone: "amber" },
     { label: "Bệnh nhân", value: patients.length, note: `${patients.filter((p) => p.walletLinked).length} ví đã liên kết`, icon: "patient" as IconName, tone: "blue" },
     { label: "Cơ sở y tế", value: facilities.length, note: `${facilities.filter((f) => f.active).length} đang hoạt động`, icon: "facility" as IconName, tone: "violet" },
-    { label: "Giao dịch audit", value: auditRows.length, note: "Bản ghi blockchain", icon: "chain" as IconName, tone: "emerald" },
+    { label: "Nhật ký hệ thống", value: auditRows.length, note: "Bản ghi đã xác minh", icon: "chain" as IconName, tone: "emerald" },
   ];
 
   return (
     <section className="admin-shell">
       <div className="admin-hero">
         <div>
-          <span className="admin-eyebrow">MEDCHAIN CONTROL CENTER</span>
+          <span className="admin-eyebrow">TRUNG TÂM QUẢN TRỊ MEDCHAIN</span>
           <h1>Quản trị hệ thống</h1>
-          <p>Xác thực người dùng, giám sát cơ sở y tế và kiểm tra dấu vết blockchain.</p>
+          <p>Xác thực người dùng, giám sát cơ sở y tế và theo dõi lịch sử hoạt động.</p>
         </div>
         <button className="admin-refresh" onClick={() => void load()} disabled={loading}>{loading ? "Đang đồng bộ…" : "Làm mới dữ liệu"}</button>
       </div>
@@ -162,7 +162,7 @@ export default function AdminPage() {
             <span><b>{item.label}</b><small>{item.description}</small></span>
             {item.id === "doctors" && doctors.length > 0 && <em>{doctors.length}</em>}
           </button>)}
-          <div className="admin-chain-health"><span><i /> Blockchain</span><b>Đang hoạt động</b><small>Dữ liệu audit được xác minh bằng txHash.</small></div>
+          <div className="admin-chain-health"><span><i /> Hệ thống xác minh</span><b>Đang hoạt động</b><small>Dữ liệu giao dịch sẵn sàng để đối chiếu.</small></div>
         </aside>
 
         <main className="admin-content">
@@ -198,7 +198,7 @@ function PatientsTable({ patients, busyId, onToggle }: { patients: AdminPatient[
 }
 
 function FacilitiesTable({ facilities }: { facilities: AdminFacility[] }) {
-  return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Facility ID</th><th>Tên cơ sở y tế</th><th>Địa chỉ</th><th>Trạng thái</th></tr></thead><tbody>
+  return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Mã cơ sở</th><th>Tên cơ sở y tế</th><th>Địa chỉ</th><th>Trạng thái</th></tr></thead><tbody>
     {facilities.map((facility) => <tr key={facility.facilityId}><td><code className="admin-code-purple">{facility.facilityId}</code></td><td><div className="admin-person admin-person-purple"><span><Icon name="facility" /></span><div><b>{facility.name}</b><small>Cơ sở y tế</small></div></div></td><td className="admin-address">{facility.address}</td><td><StatusPill active={facility.active} activeText="Đang hoạt động" inactiveText="Ngừng hoạt động" /></td></tr>)}
     {!facilities.length && <EmptyRow columns={4} text="Không tìm thấy cơ sở y tế." />}
   </tbody></table></div>;
@@ -206,8 +206,8 @@ function FacilitiesTable({ facilities }: { facilities: AdminFacility[] }) {
 
 type AuditRow = { id: string; action: string; actor: string; detail: string; cid: string; hash: string; txHash: string; time: string };
 function AuditTable({ rows }: { rows: AuditRow[] }) {
-  const labels: Record<string, string> = { GRANT_ACCESS: "Cấp quyền", REVOKE_ACCESS: "Thu hồi quyền", UPLOAD_RECORD: "Upload hồ sơ" };
-  return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Sự kiện</th><th>Người thực hiện</th><th>Đối tượng / hồ sơ</th><th>CID / Content hash</th><th>Transaction hash</th><th>Thời gian</th></tr></thead><tbody>
+  const labels: Record<string, string> = { GRANT_ACCESS: "Cấp quyền", REVOKE_ACCESS: "Thu hồi quyền", UPLOAD_RECORD: "Tải hồ sơ lên" };
+  return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Sự kiện</th><th>Người thực hiện</th><th>Đối tượng / hồ sơ</th><th>Mã lưu trữ / toàn vẹn</th><th>Mã giao dịch</th><th>Thời gian</th></tr></thead><tbody>
     {rows.map((row) => <tr key={row.id}><td><span className={`admin-event admin-event-${row.action.toLowerCase().replace("_", "-")}`}><Icon name={row.action === "UPLOAD_RECORD" ? "chain" : "wallet"} />{labels[row.action] ?? row.action}</span></td><td><b>{row.actor}</b></td><td>{row.detail}</td><td><code title={`${row.cid}\n${row.hash}`}>{shortHash(row.cid)}<br/><span>{shortHash(row.hash)}</span></code></td><td><code className="admin-tx" title={row.txHash}>{shortHash(row.txHash)}</code></td><td className="admin-time">{formatTime(row.time)}</td></tr>)}
     {!rows.length && <EmptyRow columns={6} text="Chưa có giao dịch blockchain nào được ghi nhận." />}
   </tbody></table></div>;

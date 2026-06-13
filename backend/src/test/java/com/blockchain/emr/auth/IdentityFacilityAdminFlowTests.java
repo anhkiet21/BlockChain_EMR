@@ -46,8 +46,11 @@ class IdentityFacilityAdminFlowTests {
     void exposesSeededFacilitiesWithoutAuthentication() throws Exception {
         mockMvc.perform(get("/facilities"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(3))
+                .andExpect(jsonPath("$.data.length()").value(22))
                 .andExpect(jsonPath("$.data[?(@.facilityId == 'BV001')]").exists())
+                .andExpect(jsonPath("$.data[?(@.facilityId == 'BV023')]").exists())
+                .andExpect(jsonPath("$.data[?(@.facilityId == 'BV002')]").doesNotExist())
+                .andExpect(jsonPath("$.data[?(@.facilityId == 'PK001')]").doesNotExist())
                 .andExpect(jsonPath("$.data[0].id").doesNotExist())
                 .andExpect(jsonPath("$.data[0].active").doesNotExist());
     }
@@ -132,7 +135,7 @@ class IdentityFacilityAdminFlowTests {
                 .andExpect(jsonPath("$.error.code").value("INVALID_FACILITY"));
 
         String identityNumber = uniqueIdentity();
-        JsonNode registration = registerDoctor(identityNumber, "PK001");
+        JsonNode registration = registerDoctor(identityNumber, "BV003");
         String doctorToken = registration.at("/data/accessToken").asText();
         long userId = registration.at("/data/user/id").asLong();
         MvcResult profileResult = mockMvc.perform(get("/doctors/me")

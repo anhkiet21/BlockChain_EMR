@@ -46,7 +46,7 @@ export function WalletCard({ onConnected }: { onConnected?(address: string): voi
       <div>
         <p className="label">Ví đã xác minh</p>
         <p className="mt-1 font-mono font-semibold">{shortAddress(address)}</p>
-        <p className="mt-1 text-xs text-slate-500">Cần MetaMask và chain local 31337 cho các giao dịch blockchain.</p>
+        <p className="mt-1 text-xs text-slate-500">Liên kết MetaMask để xác nhận quyền sở hữu ví.</p>
         {message && <p className="mt-2 text-sm text-slate-600">{message}</p>}
       </div>
       <button className="btn-secondary" disabled={busy} onClick={connectAndVerify}>

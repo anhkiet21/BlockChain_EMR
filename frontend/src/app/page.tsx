@@ -1,53 +1,137 @@
-import Link from "next/link";
+"use client";
 
-const MODULES = [
-  ["Xác thực", "/login", "Đăng nhập tài khoản test, đăng ký bệnh nhân/bác sĩ và quản lý phiên JWT."],
-  ["Hồ sơ cá nhân", "/profile", "Cập nhật thông tin y tế, vai trò và liên kết ví MetaMask đã xác minh."],
-  ["Quyền truy cập", "/patient/access", "Bệnh nhân cấp hoặc thu hồi quyền cho cơ sở y tế bằng giao dịch blockchain."],
-  ["Kho file bệnh án", "/patient/files", "Tải file lên IPFS, mã hóa và tải lại file của chính bệnh nhân."],
-  ["Không gian bác sĩ", "/doctor/records", "Tìm bệnh nhân, gửi yêu cầu truy cập, tạo bệnh án và tải file khi có quyền."],
-  ["Quản trị", "/admin", "Xác minh bác sĩ, khóa tài khoản và đồng bộ trạng thái hệ thống."],
-  ["Blockchain", "/blockchain", "Kiểm tra quyền, CID, hash bệnh án và trạng thái transaction on-chain."],
-];
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getSession, Session } from "@/lib/api/client";
+
+const BENEFITS = [
+  {
+    title: "Hồ sơ tập trung",
+    text: "Người bệnh quản lý và theo dõi hồ sơ y tế trong một không gian thống nhất.",
+    icon: "record",
+  },
+  {
+    title: "Quyền truy cập minh bạch",
+    text: "Bệnh nhân chủ động cấp hoặc thu hồi quyền truy cập cho từng cơ sở y tế.",
+    icon: "shield",
+  },
+  {
+    title: "Dữ liệu có thể xác minh",
+    text: "Thông tin hồ sơ và lịch sử giao dịch được đối chiếu để bảo đảm tính toàn vẹn.",
+    icon: "verify",
+  },
+] as const;
+
+function FeatureIcon({ name }: { name: "record" | "shield" | "verify" }) {
+  const paths = {
+    record: <><path d="M7 3h8l4 4v14H7z" /><path d="M15 3v5h5M10 12h6m-6 4h6" /></>,
+    shield: <><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z" /><path d="m9 12 2 2 4-4" /></>,
+    verify: <><circle cx="12" cy="12" r="9" /><path d="m8 12 2.5 2.5L16 9" /></>,
+  };
+  return (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {paths[name]}
+    </svg>
+  );
+}
 
 export default function Home() {
+  const [session, setCurrent] = useState<Session | null>(null);
+
+  useEffect(() => {
+    const sync = () => setCurrent(getSession());
+    sync();
+    window.addEventListener("emr-session-change", sync);
+    return () => window.removeEventListener("emr-session-change", sync);
+  }, []);
+
   return (
-    <section className="grid gap-8 py-10">
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr] lg:items-center">
-        <div>
-          <p className="badge">Hồ sơ bệnh án điện tử</p>
-          <h1 className="mt-5 max-w-3xl text-4xl font-black leading-tight tracking-tight text-slate-950 md:text-6xl">
-            Quản lý bệnh án an toàn với IPFS, blockchain và quyền do bệnh nhân kiểm soát
+    <section className="home-page">
+      <div className="home-hero">
+        <div className="home-hero-copy">
+          <span className="home-kicker">
+            <i />
+            Nền tảng hồ sơ sức khỏe số
+          </span>
+          <h1>
+            Hệ thống quản lý hồ sơ bệnh án điện tử
+            <span> ứng dụng blockchain</span>
           </h1>
-          <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            Giao diện này gom đầy đủ các luồng chính: xác thực, hồ sơ cá nhân, lưu trữ IPFS,
-            cấp quyền truy cập, quản lý bệnh án, quản trị và kiểm tra dữ liệu on-chain.
+          <p>
+            Kết nối bệnh nhân, bác sĩ và cơ sở y tế trên một nền tảng an toàn,
+            minh bạch và thuận tiện cho quá trình chăm sóc sức khỏe.
           </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link className="btn-primary" href="/login">Đăng nhập test</Link>
-            <Link className="btn-secondary" href="/dashboard">Mở bảng điều khiển</Link>
+          <div className="home-actions">
+            {session ? (
+              <Link className="home-primary-action" href="/dashboard">
+                Vào hệ thống
+                <span aria-hidden>→</span>
+              </Link>
+            ) : (
+              <>
+                <Link className="home-primary-action" href="/login">
+                  Đăng nhập
+                  <span aria-hidden>→</span>
+                </Link>
+                <Link className="home-secondary-action" href="/register">Đăng ký tài khoản</Link>
+              </>
+            )}
+          </div>
+          <div className="home-trust">
+            <span><i>✓</i> Bệnh nhân kiểm soát quyền truy cập</span>
+            <span><i>✓</i> Theo dõi lịch sử rõ ràng</span>
           </div>
         </div>
-        <div className="card grid gap-4">
-          <div>
-            <p className="label">Tài khoản mặc định</p>
-            <h2 className="mt-2 text-xl font-black">Dùng để kiểm thử nhanh</h2>
+
+        <div className="home-visual" aria-hidden>
+          <div className="home-orbit home-orbit-one" />
+          <div className="home-orbit home-orbit-two" />
+          <div className="home-record-card">
+            <div className="home-record-head">
+              <span className="home-record-avatar">+</span>
+              <div><b>Hồ sơ bệnh án điện tử</b><small>Thông tin được bảo vệ</small></div>
+              <em>Đã xác minh</em>
+            </div>
+            <div className="home-record-body">
+              <div className="home-record-line"><span /><span /></div>
+              <div className="home-record-line short"><span /><span /></div>
+              <div className="home-record-chart">
+                <svg viewBox="0 0 360 90" preserveAspectRatio="none">
+                  <path d="M0 60 C45 58 52 20 88 45 S145 75 180 35 S235 18 270 48 S320 70 360 25" />
+                </svg>
+              </div>
+              <div className="home-record-meta">
+                <span><i /> Toàn vẹn dữ liệu</span>
+                <span><i /> Quyền riêng tư</span>
+              </div>
+            </div>
           </div>
-          <pre className="rounded-2xl bg-slate-950 p-4 text-sm leading-7 text-slate-100">{`079000000001 / password123 (Patient)
-079000000002 / password123 (Doctor)
-admin@test.local   / password123`}</pre>
-          <p className="muted">Dùng Ctrl+F5 nếu trình duyệt vẫn giữ bundle cũ sau khi build lại.</p>
+          <div className="home-floating-card home-floating-shield">
+            <span><FeatureIcon name="shield" /></span>
+            <div><b>Truy cập an toàn</b><small>Do bệnh nhân kiểm soát</small></div>
+          </div>
+          <div className="home-floating-card home-floating-check">
+            <span><FeatureIcon name="verify" /></span>
+            <div><b>Dữ liệu xác thực</b><small>Sẵn sàng đối chiếu</small></div>
+          </div>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {MODULES.map(([title, href, text]) => (
-          <Link className="card transition hover:border-blue-300 hover:shadow-md" href={href} key={href}>
-            <p className="badge">Chức năng</p>
-            <h2 className="mt-3 text-lg font-black">{title}</h2>
-            <p className="mt-2 muted">{text}</p>
-          </Link>
+      <div className="home-benefits">
+        {BENEFITS.map((benefit) => (
+          <article key={benefit.title}>
+            <span><FeatureIcon name={benefit.icon} /></span>
+            <div>
+              <h2>{benefit.title}</h2>
+              <p>{benefit.text}</p>
+            </div>
+          </article>
         ))}
+      </div>
+
+      <div className="home-footer-note">
+        <span>MedChain EMR</span>
+        <p>Hướng đến một hệ sinh thái y tế số lấy người bệnh làm trung tâm.</p>
       </div>
     </section>
   );

@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { ResponseBox } from "@/components/response-box";
 import { apiFetch, getSession } from "@/lib/api/client";
 import { FacilityAccessCheck, OnChainRecord, TransactionState } from "@/lib/api/types";
 
@@ -12,7 +11,7 @@ export default function BlockchainPage() {
   const [callerWallet, setCallerWallet] = useState("");
   const [transactionHash, setTransactionHash] = useState("");
   const [message, setMessage] = useState("");
-  const [response, setResponse] = useState<unknown>(null);
+  const [result, setResult] = useState<{ label: string; value: string }[]>([]);
 
   const isAdmin = getSession()?.user.roles.includes("ADMIN");
 
@@ -21,8 +20,12 @@ export default function BlockchainPage() {
     try {
       const params = new URLSearchParams({ patientWallet, facilityId });
       const data = await apiFetch<FacilityAccessCheck>(`/blockchain/facility-access?${params}`);
-      setResponse(data);
-      setMessage(data.granted ? "On-chain: cơ sở y tế đã có quyền." : "On-chain: cơ sở y tế chưa có quyền.");
+      setResult([
+        { label: "Ví bệnh nhân", value: data.patientWallet },
+        { label: "Mã cơ sở", value: data.facilityId },
+        { label: "Trạng thái quyền", value: data.granted ? "Đã cấp quyền" : "Chưa cấp quyền" },
+      ]);
+      setMessage("Đã kiểm tra quyền truy cập.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Không thể kiểm tra quyền cơ sở y tế");
     }
@@ -32,8 +35,14 @@ export default function BlockchainPage() {
     event.preventDefault();
     try {
       const data = await apiFetch<OnChainRecord>(`/blockchain/records/${recordId}?callerWallet=${callerWallet}`);
-      setResponse(data);
-      setMessage(data.exists ? "Đã tải record on-chain." : "Record không tồn tại.");
+      setResult([
+        { label: "Mã hồ sơ", value: data.recordId },
+        { label: "Ví bệnh nhân", value: data.patientWallet },
+        { label: "Ví người tạo", value: data.authorWallet },
+        { label: "Mã lưu trữ", value: data.cid },
+        { label: "Trạng thái", value: data.exists ? "Tồn tại" : "Không tồn tại" },
+      ]);
+      setMessage("Đã kiểm tra hồ sơ.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Không thể đọc record");
     }
@@ -43,31 +52,33 @@ export default function BlockchainPage() {
     event.preventDefault();
     try {
       const data = await apiFetch<TransactionState>(`/blockchain/transactions/${transactionHash}`);
-      setResponse(data);
-      setMessage(`Transaction ${data.status === "SUCCESS" ? "thành công" : data.status === "PENDING" ? "đang chờ" : "thất bại"}.`);
+      setResult([
+        { label: "Mã giao dịch", value: data.transactionHash },
+        { label: "Trạng thái", value: data.status === "SUCCESS" ? "Thành công" : data.status === "PENDING" ? "Đang chờ" : "Thất bại" },
+        { label: "Khối", value: data.blockNumber ?? "-" },
+        { label: "Thông tin lỗi", value: data.failureReason ?? "-" },
+      ]);
+      setMessage("Đã kiểm tra trạng thái giao dịch.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không thể đọc transaction");
+      setMessage(error instanceof Error ? error.message : "Không thể đọc giao dịch");
     }
   }
 
   async function syncEvents() {
     try {
-      const data = await apiFetch("/blockchain/events/sync", { method: "POST" });
-      setResponse(data);
-      setMessage("Đã đồng bộ blockchain events.");
+      await apiFetch("/blockchain/events/sync", { method: "POST" });
+      setResult([]);
+      setMessage("Đã đồng bộ dữ liệu hệ thống.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không thể đồng bộ events");
+      setMessage(error instanceof Error ? error.message : "Không thể đồng bộ dữ liệu");
     }
   }
 
   return (
     <section className="grid gap-6">
       <div>
-        <p className="badge">Blockchain tools</p>
-        <h1 className="mt-3 section-title">Kiểm tra blockchain</h1>
-        <p className="mt-2 text-slate-600">
-          Dùng để test quyền cơ sở y tế, CID/hash và trạng thái transaction từ smart contract.
-        </p>
+        <p className="badge">Công cụ quản trị</p>
+        <h1 className="mt-3 section-title">Kiểm tra dữ liệu xác minh</h1>
       </div>
       {message && <p className="status">{message}</p>}
 
@@ -75,19 +86,18 @@ export default function BlockchainPage() {
         <form className="card grid gap-4" onSubmit={checkFacilityAccess}>
           <div>
             <h2 className="text-lg font-black">Kiểm tra quyền cơ sở y tế</h2>
-            <p className="mt-1 text-sm text-slate-500">Luồng hiện tại kiểm tra patient wallet + facility ID, không dùng ví bác sĩ.</p>
           </div>
           <input
             className="input font-mono"
             required
-            placeholder="Patient wallet"
+            placeholder="Địa chỉ ví bệnh nhân"
             value={patientWallet}
             onChange={(event) => setPatientWallet(event.target.value)}
           />
           <input
             className="input font-mono"
             required
-            placeholder="Facility ID, ví dụ BV001"
+            placeholder="Mã cơ sở, ví dụ BV001"
             value={facilityId}
             onChange={(event) => setFacilityId(event.target.value.toUpperCase())}
           />
@@ -95,21 +105,33 @@ export default function BlockchainPage() {
         </form>
 
         <form className="card grid gap-4" onSubmit={getRecord}>
-          <h2 className="text-lg font-black">Đọc record</h2>
-          <input className="input" required type="number" min="0" placeholder="On-chain record ID" value={recordId} onChange={(e) => setRecordId(e.target.value)} />
-          <input className="input font-mono" required placeholder="Caller wallet" value={callerWallet} onChange={(e) => setCallerWallet(e.target.value)} />
-          <button className="btn-primary">Đọc record</button>
+          <h2 className="text-lg font-black">Kiểm tra hồ sơ</h2>
+          <input className="input" required type="number" min="0" placeholder="Mã hồ sơ xác minh" value={recordId} onChange={(e) => setRecordId(e.target.value)} />
+          <input className="input font-mono" required placeholder="Địa chỉ ví kiểm tra" value={callerWallet} onChange={(e) => setCallerWallet(e.target.value)} />
+          <button className="btn-primary">Kiểm tra hồ sơ</button>
         </form>
 
         <form className="card grid gap-4" onSubmit={getTransaction}>
-          <h2 className="text-lg font-black">Trạng thái transaction</h2>
-          <input className="input font-mono" required placeholder="0x transaction hash" value={transactionHash} onChange={(e) => setTransactionHash(e.target.value)} />
-          <button className="btn-primary">Kiểm tra tx</button>
-          {isAdmin && <button className="btn-secondary" type="button" onClick={syncEvents}>Admin đồng bộ events</button>}
+          <h2 className="text-lg font-black">Trạng thái giao dịch</h2>
+          <input className="input font-mono" required placeholder="Mã giao dịch 0x..." value={transactionHash} onChange={(e) => setTransactionHash(e.target.value)} />
+          <button className="btn-primary">Kiểm tra giao dịch</button>
+          {isAdmin && <button className="btn-secondary" type="button" onClick={syncEvents}>Đồng bộ dữ liệu</button>}
         </form>
       </div>
 
-      <ResponseBox title="Blockchain response" data={response} />
+      {result.length > 0 && (
+        <section className="card">
+          <h2 className="text-lg font-black">Kết quả kiểm tra</h2>
+          <dl className="mt-4 grid gap-3 md:grid-cols-2">
+            {result.map((item) => (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4" key={item.label}>
+                <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">{item.label}</dt>
+                <dd className="mt-2 break-all text-sm font-semibold text-slate-900">{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
     </section>
   );
 }

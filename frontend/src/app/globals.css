@@ -25,6 +25,32 @@ th { @apply bg-slate-50/90 px-4 py-3 text-left text-xs font-bold uppercase track
 td { @apply px-4 py-4 align-top text-slate-700; }
 tr { @apply transition hover:bg-cyan-50/40; }
 
+.home-page { @apply grid gap-7 pb-12 pt-4 md:pt-8; }
+.home-hero { @apply relative grid min-h-[590px] overflow-hidden rounded-[2.5rem] border border-white/70 bg-slate-950 px-6 py-10 text-white shadow-[0_30px_90px_rgba(15,23,42,.2)] md:px-12 md:py-14 lg:grid-cols-[1.05fr_.95fr] lg:items-center lg:px-16; background-image: radial-gradient(circle at 82% 18%, rgba(34,211,238,.22), transparent 27rem), radial-gradient(circle at 12% 90%, rgba(37,99,235,.2), transparent 30rem), linear-gradient(135deg,#07111f 0%,#0a1830 52%,#102448 100%); }
+.home-hero::before { content: ""; @apply pointer-events-none absolute inset-0 opacity-30; background-image: linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px); background-size: 44px 44px; }
+.home-hero-copy { @apply relative z-10 max-w-3xl; }
+.home-kicker { @apply inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[.18em] text-cyan-300; }
+.home-kicker i { @apply h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_0_5px_rgba(103,232,249,.1)]; }
+.home-hero h1 { @apply mt-7 text-4xl font-black leading-[1.08] tracking-[-.035em] text-white md:text-6xl; }
+.home-hero h1 span { @apply text-cyan-300; }
+.home-hero-copy > p { @apply mt-6 max-w-2xl text-base leading-8 text-slate-300 md:text-lg; }
+.home-actions { @apply mt-8 flex flex-wrap gap-3; }
+.home-primary-action { @apply inline-flex items-center gap-4 rounded-xl bg-cyan-400 px-6 py-3.5 text-sm font-black text-slate-950 shadow-lg shadow-cyan-950/30 transition hover:-translate-y-0.5 hover:bg-cyan-300; }
+.home-primary-action span { @apply text-lg; }
+.home-secondary-action { @apply inline-flex items-center rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-bold text-white transition hover:bg-white/10; }
+.home-trust { @apply mt-8 flex flex-col gap-3 text-sm text-slate-300 sm:flex-row sm:gap-6; }
+.home-trust span { @apply flex items-center gap-2; }.home-trust i { @apply grid h-5 w-5 place-items-center rounded-full bg-emerald-400/15 text-xs font-black not-italic text-emerald-300; }
+.home-visual { @apply relative z-10 mt-14 min-h-[390px] lg:mt-0; }
+.home-orbit { @apply absolute rounded-full border border-cyan-300/15; }.home-orbit-one { @apply inset-[2%_5%_4%_8%]; }.home-orbit-two { @apply inset-[12%_15%_14%_18%] border-dashed; }
+.home-record-card { @apply absolute left-1/2 top-1/2 w-[88%] max-w-[500px] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-3xl border border-white/20 bg-white/95 text-slate-900 shadow-[0_30px_70px_rgba(0,0,0,.32)] backdrop-blur; transform: translate(-50%,-50%) rotate(-2deg); }
+.home-record-head { @apply flex items-center gap-3 border-b border-slate-100 p-5; }.home-record-avatar { @apply grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-700 text-2xl font-light text-white; }.home-record-head div { @apply min-w-0 flex-1; }.home-record-head b { @apply block text-sm font-black; }.home-record-head small { @apply mt-1 block text-xs text-slate-400; }.home-record-head em { @apply rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-black not-italic text-emerald-700; }
+.home-record-body { @apply p-6; }.home-record-line { @apply mb-3 flex gap-3; }.home-record-line span { @apply h-3 flex-1 rounded-full bg-slate-100; }.home-record-line span:first-child { @apply max-w-24 bg-slate-200; }.home-record-line.short span:last-child { @apply max-w-40; }
+.home-record-chart { @apply mt-6 h-28 overflow-hidden rounded-2xl bg-gradient-to-b from-cyan-50 to-white p-4; }.home-record-chart svg { @apply h-full w-full; }.home-record-chart path { fill:none; stroke:#0891b2; stroke-width:4; stroke-linecap:round; }
+.home-record-meta { @apply mt-5 flex flex-wrap gap-4 text-xs font-bold text-slate-600; }.home-record-meta span { @apply flex items-center gap-2; }.home-record-meta i { @apply h-2 w-2 rounded-full bg-emerald-500; }
+.home-floating-card { @apply absolute flex items-center gap-3 rounded-2xl border border-white/20 bg-slate-900/90 p-3.5 shadow-2xl backdrop-blur; }.home-floating-card > span { @apply grid h-10 w-10 place-items-center rounded-xl bg-cyan-400/15 text-cyan-300; }.home-floating-card b { @apply block text-xs font-black text-white; }.home-floating-card small { @apply mt-1 block text-[10px] text-slate-400; }.home-floating-shield { @apply left-0 top-[10%]; }.home-floating-check { @apply bottom-[8%] right-0; }
+.home-benefits { @apply grid gap-4 md:grid-cols-3; }.home-benefits article { @apply flex gap-4 rounded-3xl border border-white/80 bg-white/90 p-6 shadow-[0_16px_45px_rgba(15,23,42,.07)] transition hover:-translate-y-1 hover:shadow-xl; }.home-benefits article > span { @apply grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700; }.home-benefits h2 { @apply text-base font-black text-slate-950; }.home-benefits p { @apply mt-2 text-sm leading-6 text-slate-600; }
+.home-footer-note { @apply flex flex-col items-center justify-between gap-2 rounded-2xl border border-slate-200/70 bg-white/60 px-6 py-4 text-center sm:flex-row sm:text-left; }.home-footer-note span { @apply text-sm font-black text-cyan-900; }.home-footer-note p { @apply text-sm text-slate-500; }
+
 .admin-shell { @apply grid gap-6 pb-10; }
 .admin-hero { @apply flex flex-col gap-5 rounded-[2rem] bg-slate-950 px-7 py-8 text-white shadow-2xl shadow-slate-300/50 md:flex-row md:items-end md:justify-between md:px-10; background-image: radial-gradient(circle at 85% 15%, rgba(14,165,233,.23), transparent 28rem), linear-gradient(120deg, #07111f, #0f1d35); }
 .admin-eyebrow { @apply text-[11px] font-black tracking-[.24em] text-cyan-400; }

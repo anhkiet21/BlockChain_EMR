@@ -42,7 +42,7 @@ export async function requireExpectedChain(provider: BrowserProvider) {
   const expected = BigInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? "31337");
   const network = await provider.getNetwork();
   if (network.chainId !== expected) {
-    throw new Error(`Sai blockchain network. Hay chuyen MetaMask sang chain ID ${expected}.`);
+    throw new Error(`MetaMask đang kết nối sai mạng. Vui lòng chuyển sang mạng có mã ${expected}.`);
   }
 }
 
@@ -51,9 +51,9 @@ export async function sendPreparedTransaction(transaction: {
 }) {
   const { provider, signer, address } = await connectWallet();
   const network = await provider.getNetwork();
-  if (network.chainId !== BigInt(transaction.chainId)) throw new Error("Chain của transaction không khớp MetaMask.");
+  if (network.chainId !== BigInt(transaction.chainId)) throw new Error("Mạng MetaMask không phù hợp với giao dịch.");
   if (address.toLowerCase() !== transaction.from.toLowerCase()) {
-    throw new Error("Ví MetaMask hiện tại không khớp ví bệnh nhân trong transaction.");
+    throw new Error("Ví MetaMask hiện tại không khớp với ví bệnh nhân đã liên kết.");
   }
   let receipt: TransactionReceipt | null;
   try {
@@ -65,7 +65,7 @@ export async function sendPreparedTransaction(transaction: {
   } catch (error) {
     throw new Error(readableContractError(error));
   }
-  if (!receipt) throw new Error("Không nhận được transaction receipt.");
+  if (!receipt) throw new Error("Không nhận được kết quả giao dịch.");
   return receipt;
 }
 
@@ -79,21 +79,21 @@ function readableContractError(error: unknown) {
   if (data) {
     try {
       const parsed = new Interface(registryAbi).parseError(data);
-      if (parsed?.name === "AccessAlreadyGranted") return "Quyen truy cap nay da duoc cap tren blockchain.";
-      if (parsed?.name === "AccessAlreadyRevoked") return "Quyen truy cap nay da duoc thu hoi tren blockchain.";
-      if (parsed?.name === "AccessDenied") return "Vi hien tai khong co quyen thuc hien giao dich nay.";
-      if (parsed?.name === "InvalidFacility") return "Ma co so y te khong hop le hoac chua duoc kich hoat tren blockchain.";
+      if (parsed?.name === "AccessAlreadyGranted") return "Quyền truy cập này đã được cấp.";
+      if (parsed?.name === "AccessAlreadyRevoked") return "Quyền truy cập này đã được thu hồi.";
+      if (parsed?.name === "AccessDenied") return "Ví hiện tại không có quyền thực hiện giao dịch này.";
+      if (parsed?.name === "InvalidFacility") return "Cơ sở y tế không hợp lệ hoặc chưa được kích hoạt.";
     } catch {
       // Fall through to the wallet-provided message for unknown contract errors.
     }
   }
-  return candidate?.shortMessage ?? (error instanceof Error ? error.message : "Giao dich blockchain that bai.");
+  return candidate?.shortMessage ?? (error instanceof Error ? error.message : "Giao dịch thất bại.");
 }
 
 export async function createOnChainRecord(patientWallet: string, doctorWallet: string, cid: string, contentHash: string) {
   const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
   if (!contractAddress || !ethers.isAddress(contractAddress)) {
-    throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS chua duoc cau hinh.");
+    throw new Error("Hệ thống xác minh chưa được cấu hình.");
   }
   const { signer, address } = await connectWallet();
   if (address.toLowerCase() !== doctorWallet.toLowerCase()) {
@@ -111,7 +111,7 @@ export async function createOnChainRecord(patientWallet: string, doctorWallet: s
       // Ignore logs emitted by other contracts.
     }
   }
-  throw new Error("Transaction thành công nhưng không tìm thấy event RecordCreated.");
+  throw new Error("Giao dịch thành công nhưng không thể xác nhận hồ sơ.");
 }
 
 export async function createOnChainRecordWithMetadata(input: {
@@ -119,7 +119,7 @@ export async function createOnChainRecordWithMetadata(input: {
   sourceType: "PATIENT_UPLOADED" | "DOCTOR_UPLOADED"; facilityId?: string;
 }) {
   const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-  if (!contractAddress || !ethers.isAddress(contractAddress)) throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS chua duoc cau hinh.");
+  if (!contractAddress || !ethers.isAddress(contractAddress)) throw new Error("Hệ thống xác minh chưa được cấu hình.");
   const { signer, address } = await connectWallet();
   if (address.toLowerCase() !== input.uploaderWallet.toLowerCase()) throw new Error("Ví MetaMask không khớp ví đã xác minh.");
   const contract = new Contract(contractAddress, registryAbi, signer);
@@ -136,7 +136,7 @@ export async function createOnChainRecordWithMetadata(input: {
       if (parsed?.name === "RecordCreated") return { recordId: parsed.args.recordId.toString(), transactionHash: receipt.hash };
     } catch { /* ignore unrelated logs */ }
   }
-  throw new Error("Không tìm thấy event RecordCreated.");
+  throw new Error("Không thể xác nhận hồ sơ sau giao dịch.");
 }
 
 export async function createOnChainRecordVersion(
@@ -147,7 +147,7 @@ export async function createOnChainRecordVersion(
 ) {
   const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
   if (!contractAddress || !ethers.isAddress(contractAddress)) {
-    throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS chua duoc cau hinh.");
+    throw new Error("Hệ thống xác minh chưa được cấu hình.");
   }
   const { signer, address } = await connectWallet();
   if (address.toLowerCase() !== doctorWallet.toLowerCase()) {
@@ -166,5 +166,5 @@ export async function createOnChainRecordVersion(
       // Ignore logs emitted by other contracts.
     }
   }
-  throw new Error("Transaction thành công nhưng không tìm thấy event RecordCreated.");
+  throw new Error("Giao dịch thành công nhưng không thể xác nhận hồ sơ.");
 }

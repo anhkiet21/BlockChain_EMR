@@ -4,15 +4,15 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { publicApi, Session, setSession } from "@/lib/api/client";
 
-const TEST_ACCOUNTS = [
-  { label: "Bệnh nhân", identifier: "079000000001" },
-  { label: "Bác sĩ", identifier: "079000000002" },
-  { label: "Quản trị", identifier: "admin@test.local" },
-];
+const DEMO_ACCOUNTS = [
+  { label: "Bệnh nhân", identifier: "079000000001", password: "password123" },
+  { label: "Bác sĩ", identifier: "079000000002", password: "password123" },
+  { label: "Quản trị viên", identifier: "admin@test.local", password: "password123" },
+] as const;
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("password123");
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -38,16 +38,26 @@ export default function LoginPage() {
         <p className="badge">MedChain EMR</p>
         <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">Đăng nhập hệ thống</h1>
         <p className="mt-3 leading-7 text-slate-600">
-          Truy cập hồ sơ bệnh án, ký giao dịch bằng MetaMask và kiểm thử các luồng bảo mật theo vai trò.
+          Truy cập hồ sơ bệnh án và các chức năng phù hợp với tài khoản của bạn.
         </p>
+        <div className="mt-6 rounded-2xl bg-cyan-50 p-4 text-sm leading-6 text-cyan-950">
+          Bệnh nhân và bác sĩ đăng nhập bằng CCCD hoặc mã định danh. Quản trị viên sử dụng email.
+        </div>
         <div className="mt-6 grid gap-3">
-          <p className="label">Tài khoản test</p>
-          {TEST_ACCOUNTS.map((account) => (
+          <div>
+            <p className="label">Tài khoản dùng thử</p>
+            <p className="mt-1 text-xs text-slate-500">Chọn tài khoản để điền nhanh thông tin đăng nhập.</p>
+          </div>
+          {DEMO_ACCOUNTS.map((account) => (
             <button
               className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50"
               type="button"
               key={account.label}
-              onClick={() => setIdentifier(account.identifier)}
+              onClick={() => {
+                setIdentifier(account.identifier);
+                setPassword(account.password);
+                setMessage("");
+              }}
             >
               <span>{account.label}</span>
               <span className="font-mono text-xs text-slate-500">{account.identifier}</span>
@@ -68,7 +78,7 @@ export default function LoginPage() {
             required
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="Admin có thể dùng email"
+            placeholder="Nhập CCCD, mã định danh hoặc email"
           />
         </label>
         <label className="grid gap-2 text-sm font-bold text-slate-700">

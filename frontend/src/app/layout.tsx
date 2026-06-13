@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { RoleNavigation } from "@/components/role-navigation";
 import { SessionBar } from "@/components/session-bar";
 import "./globals.css";
 
@@ -19,13 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-cyan-600 to-blue-700 text-white shadow-sm">M</span>
                 <span>MedChain EMR</span>
               </Link>
-              <Link className="nav-link" href="/dashboard">Tổng quan</Link>
-              <Link className="nav-link" href="/profile">Hồ sơ</Link>
-              <Link className="nav-link" href="/patient/access">Quyền truy cập</Link>
-              <Link className="nav-link" href="/patient/records">Bệnh án</Link>
-              <Link className="nav-link" href="/doctor/records">Bác sĩ</Link>
-              <Link className="nav-link" href="/admin">Quản trị</Link>
-              <Link className="nav-link" href="/blockchain">Blockchain</Link>
+              <RoleNavigation />
             </div>
             <SessionBar />
           </nav>

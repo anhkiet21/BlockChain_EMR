@@ -69,10 +69,10 @@ export default function DoctorRecordsPage() {
         method: "POST",
         body: JSON.stringify({ medicalFileId: pending.medicalFileId, onChainRecordId: chain.recordId, transactionHash: chain.transactionHash }),
       });
-      setMessage("Đã tạo hồ sơ DOCTOR_UPLOADED.");
+      setMessage("Đã tải hồ sơ bệnh án lên thành công.");
       await loadRecords();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Upload thất bại");
+      setMessage(error instanceof Error ? error.message : "Tải hồ sơ lên thất bại");
     } finally {
       setBusy(false);
     }
@@ -97,10 +97,12 @@ export default function DoctorRecordsPage() {
       <div>
         <p className="badge">Không gian bác sĩ</p>
         <h1 className="mt-3 section-title">Hồ sơ bệnh nhân</h1>
-        <p className="mt-2 text-slate-600">Trạng thái: {doctor?.verificationStatus ?? "..."} · {doctor?.facility?.name ?? "Chưa có cơ sở"}</p>
+        <p className="mt-2 text-slate-600">
+          {doctor?.verificationStatus === "VERIFIED" ? "Đã xác thực" : "Đang chờ xác thực"} · {doctor?.facility?.name ?? "Chưa có cơ sở"}
+        </p>
       </div>
 
-      {!ready && <p className="status">Tài khoản bác sĩ đang chờ admin xác thực hoặc chưa được gắn cơ sở y tế.</p>}
+      {!ready && <p className="status">Tài khoản bác sĩ đang chờ quản trị viên xác thực hoặc chưa được gắn cơ sở y tế.</p>}
       {message && <p className="status">{message}</p>}
 
       {ready && (
@@ -137,24 +139,24 @@ export default function DoctorRecordsPage() {
                 <button className="btn-primary" onClick={requestAccess}>Gửi yêu cầu</button>
               </div>
               <form className="card grid gap-3" onSubmit={upload}>
-                <h2 className="font-black">Upload hồ sơ</h2>
+                <h2 className="font-black">Tải hồ sơ lên</h2>
                 <input className="input" type="file" required onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-                <button className="btn-primary" disabled={busy}>{busy ? "Đang upload và ký..." : "Upload hồ sơ"}</button>
+                <button className="btn-primary" disabled={busy}>{busy ? "Đang xử lý..." : "Tải hồ sơ lên"}</button>
               </form>
             </div>
           )}
 
           <div className="table-wrap">
             <table>
-              <thead><tr><th>File</th><th>Nguồn</th><th>Người upload</th><th>Cơ sở</th><th></th></tr></thead>
+              <thead><tr><th>Tệp</th><th>Nguồn</th><th>Người tải lên</th><th>Cơ sở</th><th></th></tr></thead>
               <tbody>
                 {records.map((record) => (
                   <tr key={record.recordId}>
                     <td className="font-semibold">{record.originalFileName}</td>
-                    <td>{record.sourceType}</td>
+                    <td>{record.sourceType === "PATIENT_UPLOADED" ? "Bệnh nhân" : "Bác sĩ"}</td>
                     <td>{record.uploaderName}</td>
                     <td>{record.facilityName ?? "-"}</td>
-                    <td><button className="btn-secondary" onClick={() => download(record)}>Tải file</button></td>
+                    <td><button className="btn-secondary" onClick={() => download(record)}>Tải xuống</button></td>
                   </tr>
                 ))}
                 {!records.length && <tr><td colSpan={5} className="text-center text-slate-500">Chưa có hồ sơ để hiển thị.</td></tr>}

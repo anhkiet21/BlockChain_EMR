@@ -9,7 +9,7 @@ export default function RegisterPage() {
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [form, setForm] = useState({
     identityNumber: "",
-    password: "password123",
+    password: "",
     fullName: "",
     dateOfBirth: "",
     gender: "MALE",
@@ -68,7 +68,7 @@ export default function RegisterPage() {
         <div>
           <p className="badge">Tài khoản mới</p>
           <h1 className="mt-3 section-title">Đăng ký người dùng</h1>
-          <p className="mt-2 muted">Chọn đúng vai trò để backend tạo hồ sơ bệnh nhân hoặc hồ sơ bác sĩ tương ứng.</p>
+          <p className="mt-2 muted">Chọn vai trò phù hợp để tạo tài khoản.</p>
         </div>
         <label className="grid gap-2 text-sm font-bold text-slate-700">
           Vai trò

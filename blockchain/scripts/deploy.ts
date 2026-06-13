@@ -3,7 +3,13 @@ import { ethers } from "hardhat";
 async function main() {
   const registry = await ethers.deployContract("MedicalRecordRegistry");
   await registry.waitForDeployment();
-  for (const facilityId of ["BV001", "BV002", "PK001"]) {
+  const facilityIds = [
+    "BV001",
+    ...Array.from({ length: 21 }, (_, index) =>
+      `BV${String(index + 3).padStart(3, "0")}`,
+    ),
+  ];
+  for (const facilityId of facilityIds) {
     const encoded = ethers.encodeBytes32String(facilityId);
     await (await registry.setFacilityStatus(encoded, true)).wait();
   }
