@@ -37,9 +37,9 @@ export default function ProfilePage() {
         setDoctor(await apiFetch<DoctorProfile>("/doctors/me"));
         setDepartments(await apiFetch<Department[]>("/departments"));
       }
-      setMessage({ text: "Da tai ho so.", kind: "info" });
+      setMessage({ text: "Đã tải hồ sơ.", kind: "info" });
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : "Khong the tai ho so", kind: "error" });
+      setMessage({ text: error instanceof Error ? error.message : "Không thể tải hồ sơ", kind: "error" });
     }
   }
 
@@ -61,10 +61,10 @@ export default function ProfilePage() {
       });
       setPatient(saved);
       setLastResponse(saved);
-      setMessage({ text: "Da luu ho so benh nhan.", kind: "info" });
+      setMessage({ text: "Đã lưu hồ sơ bệnh nhân.", kind: "info" });
       await load();
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : "Khong the luu ho so", kind: "error" });
+      setMessage({ text: error instanceof Error ? error.message : "Không thể lưu hồ sơ", kind: "error" });
     }
   }
 
@@ -84,22 +84,22 @@ export default function ProfilePage() {
       });
       setDoctor(saved);
       setLastResponse(saved);
-      setMessage({ text: "Da luu ho so bac si.", kind: "info" });
+      setMessage({ text: "Đã lưu hồ sơ bác sĩ.", kind: "info" });
       await load();
     } catch (error) {
-      setMessage({ text: error instanceof Error ? error.message : "Khong the luu ho so", kind: "error" });
+      setMessage({ text: error instanceof Error ? error.message : "Không thể lưu hồ sơ", kind: "error" });
     }
   }
 
   if (!user) {
-    return <p className="status">Can dang nhap de xem ho so.</p>;
+    return <p className="status">Cần đăng nhập để xem hồ sơ.</p>;
   }
 
   return (
     <section className="grid gap-6">
       <div>
-        <p className="label text-blue-700">Profile</p>
-        <h1 className="mt-2 text-3xl font-bold">Ho so va vi</h1>
+        <p className="badge">Hồ sơ cá nhân</p>
+        <h1 className="mt-3 section-title">Hồ sơ và ví</h1>
         <p className="mt-2 text-slate-600">{user.identityNumberMasked ?? user.email} · {user.roles.join(", ")}</p>
       </div>
 
@@ -109,37 +109,39 @@ export default function ProfilePage() {
       <div className="grid gap-6 lg:grid-cols-2">
         {isPatient && (
           <form className="card grid gap-4" onSubmit={savePatient}>
-            <h2 className="text-lg font-bold">Ho so benh nhan</h2>
-            <label className="grid gap-1 text-sm font-medium">Ho ten<input className="input" required value={patient.fullName || ""} onChange={(e) => setPatient({ ...patient, fullName: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">Ngay sinh<input className="input" type="date" value={patient.dateOfBirth || ""} onChange={(e) => setPatient({ ...patient, dateOfBirth: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">Gioi tinh<select className="input" value={patient.gender || ""} onChange={(e) => setPatient({ ...patient, gender: e.target.value })}><option value="">Chua chon</option><option>MALE</option><option>FEMALE</option><option>OTHER</option></select></label>
-            <label className="grid gap-1 text-sm font-medium">Dien thoai<input className="input" value={patient.phone || ""} onChange={(e) => setPatient({ ...patient, phone: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">Dia chi<textarea className="input" value={patient.address || ""} onChange={(e) => setPatient({ ...patient, address: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">Nguoi lien he khan cap<input className="input" value={patient.emergencyContactName || ""} onChange={(e) => setPatient({ ...patient, emergencyContactName: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">SDT khan cap<input className="input" value={patient.emergencyContactPhone || ""} onChange={(e) => setPatient({ ...patient, emergencyContactPhone: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">Nhom mau<input className="input" placeholder="A+, B-, AB+, O-" value={patient.bloodType || ""} onChange={(e) => setPatient({ ...patient, bloodType: e.target.value })} /></label>
-            <button className="btn-primary">Luu ho so benh nhan</button>
+            <h2 className="text-lg font-black">Hồ sơ bệnh nhân</h2>
+            <label className="grid gap-1 text-sm font-medium">Họ tên<input className="input" required value={patient.fullName || ""} onChange={(e) => setPatient({ ...patient, fullName: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Ngày sinh<input className="input" type="date" value={patient.dateOfBirth || ""} onChange={(e) => setPatient({ ...patient, dateOfBirth: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Giới tính<select className="input" value={patient.gender || ""} onChange={(e) => setPatient({ ...patient, gender: e.target.value })}><option value="">Chưa chọn</option><option value="MALE">Nam</option><option value="FEMALE">Nữ</option><option value="OTHER">Khác</option></select></label>
+            <label className="grid gap-1 text-sm font-medium">Điện thoại<input className="input" value={patient.phone || ""} onChange={(e) => setPatient({ ...patient, phone: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Địa chỉ<textarea className="input" value={patient.address || ""} onChange={(e) => setPatient({ ...patient, address: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Người liên hệ khẩn cấp<input className="input" value={patient.emergencyContactName || ""} onChange={(e) => setPatient({ ...patient, emergencyContactName: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">SĐT khẩn cấp<input className="input" value={patient.emergencyContactPhone || ""} onChange={(e) => setPatient({ ...patient, emergencyContactPhone: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Nhóm máu<input className="input" placeholder="A+, B-, AB+, O-" value={patient.bloodType || ""} onChange={(e) => setPatient({ ...patient, bloodType: e.target.value })} /></label>
+            <button className="btn-primary">Lưu hồ sơ bệnh nhân</button>
           </form>
         )}
 
         {isDoctor && (
           <form className="card grid gap-4" onSubmit={saveDoctor}>
-            <h2 className="text-lg font-bold">Ho so bac si</h2>
-            <label className="grid gap-1 text-sm font-medium">Ho ten<input className="input" required value={doctor.fullName || ""} onChange={(e) => setDoctor({ ...doctor, fullName: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">So giay phep<input className="input" required value={doctor.licenseNumber || ""} onChange={(e) => setDoctor({ ...doctor, licenseNumber: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">Chuyen khoa<input className="input" required value={doctor.specialization || ""} onChange={(e) => setDoctor({ ...doctor, specialization: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">Khoa phong<select className="input" value={doctor.department?.id || ""} onChange={(e) => setDoctor({ ...doctor, department: departments.find((item) => item.id === Number(e.target.value)) })}><option value="">Chua chon</option>{departments.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
-            <label className="grid gap-1 text-sm font-medium">Dien thoai<input className="input" value={doctor.phone || ""} onChange={(e) => setDoctor({ ...doctor, phone: e.target.value })} /></label>
-            <label className="grid gap-1 text-sm font-medium">Gioi thieu<textarea className="input" value={doctor.biography || ""} onChange={(e) => setDoctor({ ...doctor, biography: e.target.value })} /></label>
-            <p className={doctor.verified ? "text-sm font-semibold text-green-700" : "text-sm font-semibold text-amber-700"}>Trang thai: {doctor.verificationStatus ?? "PENDING_VERIFICATION"} · Co so: {doctor.facility?.name ?? "Chua gan"}</p>
-            <button className="btn-primary">Luu ho so bac si</button>
+            <h2 className="text-lg font-black">Hồ sơ bác sĩ</h2>
+            <label className="grid gap-1 text-sm font-medium">Họ tên<input className="input" required value={doctor.fullName || ""} onChange={(e) => setDoctor({ ...doctor, fullName: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Số giấy phép<input className="input" required value={doctor.licenseNumber || ""} onChange={(e) => setDoctor({ ...doctor, licenseNumber: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Chuyên khoa<input className="input" required value={doctor.specialization || ""} onChange={(e) => setDoctor({ ...doctor, specialization: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Khoa phòng<select className="input" value={doctor.department?.id || ""} onChange={(e) => setDoctor({ ...doctor, department: departments.find((item) => item.id === Number(e.target.value)) })}><option value="">Chưa chọn</option>{departments.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+            <label className="grid gap-1 text-sm font-medium">Điện thoại<input className="input" value={doctor.phone || ""} onChange={(e) => setDoctor({ ...doctor, phone: e.target.value })} /></label>
+            <label className="grid gap-1 text-sm font-medium">Giới thiệu<textarea className="input" value={doctor.biography || ""} onChange={(e) => setDoctor({ ...doctor, biography: e.target.value })} /></label>
+            <p className={doctor.verified ? "text-sm font-semibold text-green-700" : "text-sm font-semibold text-amber-700"}>
+              Trạng thái: {doctor.verificationStatus ?? "PENDING_VERIFICATION"} · Cơ sở: {doctor.facility?.name ?? "Chưa gắn"}
+            </p>
+            <button className="btn-primary">Lưu hồ sơ bác sĩ</button>
           </form>
         )}
 
         <div className="card grid gap-4">
-          <h2 className="text-lg font-bold">Session hien tai</h2>
+          <h2 className="text-lg font-black">Phiên hiện tại</h2>
           <ResponseBox data={user} />
-          <ResponseBox title="Last response" data={lastResponse} />
+          <ResponseBox title="Phản hồi gần nhất" data={lastResponse} />
         </div>
       </div>
     </section>

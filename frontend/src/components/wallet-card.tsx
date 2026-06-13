@@ -33,9 +33,9 @@ export function WalletCard({ onConnected }: { onConnected?(address: string): voi
       const session = getSession();
       if (session) setSession({ ...session, user });
       onConnected?.(wallet);
-      setMessage("Vi da duoc ket noi va xac minh.");
+      setMessage("Ví đã được kết nối và xác minh.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Khong the ket noi vi");
+      setMessage(error instanceof Error ? error.message : "Không thể kết nối ví");
     } finally {
       setBusy(false);
     }
@@ -44,13 +44,13 @@ export function WalletCard({ onConnected }: { onConnected?(address: string): voi
   return (
     <div className="card flex flex-wrap items-center justify-between gap-4">
       <div>
-        <p className="label">Vi da xac minh</p>
+        <p className="label">Ví đã xác minh</p>
         <p className="mt-1 font-mono font-semibold">{shortAddress(address)}</p>
-        <p className="mt-1 text-xs text-slate-500">Can MetaMask va chain local 31337 cho cac giao dich blockchain.</p>
+        <p className="mt-1 text-xs text-slate-500">Cần MetaMask và chain local 31337 cho các giao dịch blockchain.</p>
         {message && <p className="mt-2 text-sm text-slate-600">{message}</p>}
       </div>
       <button className="btn-secondary" disabled={busy} onClick={connectAndVerify}>
-        {busy ? "Dang xac minh..." : "Ket noi va xac minh MetaMask"}
+        {busy ? "Đang xác minh..." : "Kết nối và xác minh MetaMask"}
       </button>
     </div>
   );

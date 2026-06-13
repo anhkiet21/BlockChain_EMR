@@ -3,11 +3,11 @@
 import { FormEvent, useState } from "react";
 import { ResponseBox } from "@/components/response-box";
 import { apiFetch, getSession } from "@/lib/api/client";
-import { AccessCheck, OnChainRecord, TransactionState } from "@/lib/api/types";
+import { FacilityAccessCheck, OnChainRecord, TransactionState } from "@/lib/api/types";
 
 export default function BlockchainPage() {
   const [patientWallet, setPatientWallet] = useState("");
-  const [granteeWallet, setGranteeWallet] = useState("");
+  const [facilityId, setFacilityId] = useState("BV001");
   const [recordId, setRecordId] = useState("");
   const [callerWallet, setCallerWallet] = useState("");
   const [transactionHash, setTransactionHash] = useState("");
@@ -16,14 +16,15 @@ export default function BlockchainPage() {
 
   const isAdmin = getSession()?.user.roles.includes("ADMIN");
 
-  async function checkAccess(event: FormEvent) {
+  async function checkFacilityAccess(event: FormEvent) {
     event.preventDefault();
     try {
-      const data = await apiFetch<AccessCheck>(`/blockchain/access?patientWallet=${patientWallet}&granteeWallet=${granteeWallet}`);
+      const params = new URLSearchParams({ patientWallet, facilityId });
+      const data = await apiFetch<FacilityAccessCheck>(`/blockchain/facility-access?${params}`);
       setResponse(data);
-      setMessage(data.granted ? "On-chain: co quyen." : "On-chain: chua co quyen.");
+      setMessage(data.granted ? "On-chain: cơ sở y tế đã có quyền." : "On-chain: cơ sở y tế chưa có quyền.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Khong the kiem tra access");
+      setMessage(error instanceof Error ? error.message : "Không thể kiểm tra quyền cơ sở y tế");
     }
   }
 
@@ -32,9 +33,9 @@ export default function BlockchainPage() {
     try {
       const data = await apiFetch<OnChainRecord>(`/blockchain/records/${recordId}?callerWallet=${callerWallet}`);
       setResponse(data);
-      setMessage(data.exists ? "Da tai record on-chain." : "Record khong ton tai.");
+      setMessage(data.exists ? "Đã tải record on-chain." : "Record không tồn tại.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Khong the doc record");
+      setMessage(error instanceof Error ? error.message : "Không thể đọc record");
     }
   }
 
@@ -43,9 +44,9 @@ export default function BlockchainPage() {
     try {
       const data = await apiFetch<TransactionState>(`/blockchain/transactions/${transactionHash}`);
       setResponse(data);
-      setMessage(data.found ? `Transaction ${data.success ? "success" : "failed/pending"}` : "Khong tim thay transaction.");
+      setMessage(`Transaction ${data.status === "SUCCESS" ? "thành công" : data.status === "PENDING" ? "đang chờ" : "thất bại"}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Khong the doc transaction");
+      setMessage(error instanceof Error ? error.message : "Không thể đọc transaction");
     }
   }
 
@@ -53,41 +54,58 @@ export default function BlockchainPage() {
     try {
       const data = await apiFetch("/blockchain/events/sync", { method: "POST" });
       setResponse(data);
-      setMessage("Da sync blockchain events.");
+      setMessage("Đã đồng bộ blockchain events.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Khong the sync events");
+      setMessage(error instanceof Error ? error.message : "Không thể đồng bộ events");
     }
   }
 
   return (
     <section className="grid gap-6">
       <div>
-        <p className="label text-blue-700">Blockchain tools</p>
-        <h1 className="mt-2 text-3xl font-bold">Kiem tra blockchain</h1>
-        <p className="mt-2 text-slate-600">Dung cho test doc quyen, CID va transaction tu smart contract.</p>
+        <p className="badge">Blockchain tools</p>
+        <h1 className="mt-3 section-title">Kiểm tra blockchain</h1>
+        <p className="mt-2 text-slate-600">
+          Dùng để test quyền cơ sở y tế, CID/hash và trạng thái transaction từ smart contract.
+        </p>
       </div>
       {message && <p className="status">{message}</p>}
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <form className="card grid gap-4" onSubmit={checkAccess}>
-          <h2 className="text-lg font-bold">Kiem tra access</h2>
-          <input className="input font-mono" required placeholder="Patient wallet" value={patientWallet} onChange={(e) => setPatientWallet(e.target.value)} />
-          <input className="input font-mono" required placeholder="Grantee/doctor wallet" value={granteeWallet} onChange={(e) => setGranteeWallet(e.target.value)} />
-          <button className="btn-primary">Kiem tra</button>
+        <form className="card grid gap-4" onSubmit={checkFacilityAccess}>
+          <div>
+            <h2 className="text-lg font-black">Kiểm tra quyền cơ sở y tế</h2>
+            <p className="mt-1 text-sm text-slate-500">Luồng hiện tại kiểm tra patient wallet + facility ID, không dùng ví bác sĩ.</p>
+          </div>
+          <input
+            className="input font-mono"
+            required
+            placeholder="Patient wallet"
+            value={patientWallet}
+            onChange={(event) => setPatientWallet(event.target.value)}
+          />
+          <input
+            className="input font-mono"
+            required
+            placeholder="Facility ID, ví dụ BV001"
+            value={facilityId}
+            onChange={(event) => setFacilityId(event.target.value.toUpperCase())}
+          />
+          <button className="btn-primary">Kiểm tra</button>
         </form>
 
         <form className="card grid gap-4" onSubmit={getRecord}>
-          <h2 className="text-lg font-bold">Doc record</h2>
+          <h2 className="text-lg font-black">Đọc record</h2>
           <input className="input" required type="number" min="0" placeholder="On-chain record ID" value={recordId} onChange={(e) => setRecordId(e.target.value)} />
           <input className="input font-mono" required placeholder="Caller wallet" value={callerWallet} onChange={(e) => setCallerWallet(e.target.value)} />
-          <button className="btn-primary">Doc record</button>
+          <button className="btn-primary">Đọc record</button>
         </form>
 
         <form className="card grid gap-4" onSubmit={getTransaction}>
-          <h2 className="text-lg font-bold">Transaction status</h2>
+          <h2 className="text-lg font-black">Trạng thái transaction</h2>
           <input className="input font-mono" required placeholder="0x transaction hash" value={transactionHash} onChange={(e) => setTransactionHash(e.target.value)} />
-          <button className="btn-primary">Kiem tra tx</button>
-          {isAdmin && <button className="btn-secondary" type="button" onClick={syncEvents}>Admin sync events</button>}
+          <button className="btn-primary">Kiểm tra tx</button>
+          {isAdmin && <button className="btn-secondary" type="button" onClick={syncEvents}>Admin đồng bộ events</button>}
         </form>
       </div>
 

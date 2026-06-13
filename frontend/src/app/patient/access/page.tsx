@@ -12,56 +12,134 @@ export default function PatientAccessPage() {
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [grants, setGrants] = useState<FacilityGrant[]>([]);
   const [requests, setRequests] = useState<FacilityAccessRequest[]>([]);
-  const [message, setMessage] = useState(""); const [busy, setBusy] = useState("");
-  useEffect(() => { if (access === "allowed") load(); }, [access]);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState("");
+
+  useEffect(() => {
+    if (access === "allowed") load();
+  }, [access]);
 
   async function load() {
     try {
       const [facilityData, grantData, requestData] = await Promise.all([
-        apiFetch<Facility[]>("/facilities"), apiFetch<FacilityGrant[]>("/patient/access/grants"),
+        apiFetch<Facility[]>("/facilities"),
+        apiFetch<FacilityGrant[]>("/patient/access/grants"),
         apiFetch<Page<FacilityAccessRequest>>("/patient/access-requests"),
       ]);
-      setFacilities(facilityData); setGrants(grantData); setRequests(requestData.content);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Khong tai duoc du lieu"); }
+      setFacilities(facilityData);
+      setGrants(grantData);
+      setRequests(requestData.content);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Không tải được dữ liệu");
+    }
   }
 
   async function changeAccess(facilityId: string, granted: boolean, requestId?: number) {
-    setBusy(`${facilityId}-${granted}`); setMessage("");
+    setBusy(`${facilityId}-${granted}`);
+    setMessage("");
     try {
       const prepared = await apiFetch<PreparedFacilityTransaction>("/patient/access/transactions/prepare", {
-        method: "POST", body: JSON.stringify({ facilityId, granted }),
+        method: "POST",
+        body: JSON.stringify({ facilityId, granted }),
       });
       const receipt = await sendPreparedTransaction(prepared);
       if (requestId) {
         await apiFetch(`/patient/access-requests/${requestId}/approve`, { method: "POST", body: JSON.stringify({ transactionHash: receipt.hash }) });
       } else {
         await apiFetch(`/patient/access/transactions/confirm?transactionHash=${receipt.hash}`, {
-          method: "POST", body: JSON.stringify({ facilityId, granted }),
+          method: "POST",
+          body: JSON.stringify({ facilityId, granted }),
         });
       }
-      setMessage(granted ? "Da cap quyen cho co so y te." : "Da thu hoi quyen."); await load();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Giao dich that bai"); }
-    finally { setBusy(""); }
+      setMessage(granted ? "Đã cấp quyền cho cơ sở y tế." : "Đã thu hồi quyền.");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Giao dịch thất bại");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function reject(id: number) {
-    try { await apiFetch(`/patient/access-requests/${id}/reject`, { method: "POST" }); setMessage("Da tu choi yeu cau."); await load(); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Khong the tu choi"); }
+    try {
+      await apiFetch(`/patient/access-requests/${id}/reject`, { method: "POST" });
+      setMessage("Đã từ chối yêu cầu.");
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Không thể từ chối");
+    }
   }
 
   if (access !== "allowed") return <AccessState access={access} />;
+
   const active = new Map(grants.map((g) => [g.facilityId, g.active]));
-  return <section className="grid gap-6">
-    <div><p className="label text-blue-700">Patient consent</p><h1 className="mt-2 text-3xl font-bold">Quyen truy cap theo co so y te</h1><p className="mt-2 text-slate-600">Quyen duoc ghi tren blockchain theo patient wallet va facilityId.</p></div>
-    {message && <p className="status">{message}</p>}
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{facilities.map((f) => <article className="card" key={f.facilityId}>
-      <p className="label">{f.facilityId}</p><h2 className="mt-2 font-bold">{f.name}</h2><p className="mt-2 text-sm text-slate-600">{f.address}</p>
-      <button className={active.get(f.facilityId) ? "btn-danger mt-4" : "btn-primary mt-4"} disabled={!!busy}
-        onClick={() => changeAccess(f.facilityId, !active.get(f.facilityId))}>{active.get(f.facilityId) ? "Thu hoi quyen" : "Cap quyen"}</button>
-    </article>)}</div>
-    <div className="card"><h2 className="text-lg font-bold">Yeu cau truy cap</h2><div className="mt-4 grid gap-3">{requests.length === 0 && <p className="text-sm text-slate-500">Chua co yeu cau.</p>}{requests.map((r) => <div className="rounded-xl border p-4" key={r.requestId}>
-      <p className="font-semibold">Bac si {r.doctorName} thuoc {r.facilityName} yeu cau quyen truy cap ho so.</p><p className="mt-1 text-sm text-slate-600">{r.reason}</p><p className="mt-1 text-xs text-slate-500">{r.status} · {new Date(r.createdAt).toLocaleString()}</p>
-      {r.status === "PENDING" && <div className="mt-3 flex gap-2"><button className="btn-primary" disabled={!!busy} onClick={() => changeAccess(r.facilityId, true, r.requestId)}>Dong y va ky MetaMask</button><button className="btn-danger" onClick={() => reject(r.requestId)}>Tu choi</button></div>}
-    </div>)}</div></div>
-  </section>;
+
+  return (
+    <section className="grid gap-6">
+      <div>
+        <p className="badge">Đồng thuận của bệnh nhân</p>
+        <h1 className="mt-3 section-title">Quyền truy cập theo cơ sở y tế</h1>
+        <p className="mt-2 text-slate-600">
+          Quyền được ghi trên blockchain theo ví bệnh nhân và mã cơ sở y tế. Backend đồng bộ trạng thái để hiển thị và audit.
+        </p>
+      </div>
+
+      {message && <p className="status">{message}</p>}
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {facilities.map((facility) => {
+          const granted = active.get(facility.facilityId);
+          return (
+            <article className="card" key={facility.facilityId}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="badge">{facility.facilityId}</p>
+                  <h2 className="mt-3 text-lg font-black">{facility.name}</h2>
+                </div>
+                <span className={granted ? "badge border-emerald-100 bg-emerald-50 text-emerald-700" : "badge border-slate-200 bg-slate-50 text-slate-500"}>
+                  {granted ? "Đã cấp" : "Chưa cấp"}
+                </span>
+              </div>
+              <p className="mt-3 muted">{facility.address}</p>
+              <button
+                className={granted ? "btn-danger mt-5" : "btn-primary mt-5"}
+                disabled={!!busy}
+                onClick={() => changeAccess(facility.facilityId, !granted)}
+              >
+                {granted ? "Thu hồi quyền" : "Cấp quyền"}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="card">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="label">Access request</p>
+            <h2 className="mt-2 text-xl font-black">Yêu cầu truy cập từ bác sĩ</h2>
+          </div>
+          <button className="btn-secondary" onClick={load}>Làm mới</button>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {requests.length === 0 && <p className="muted">Chưa có yêu cầu truy cập.</p>}
+          {requests.map((request) => (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4" key={request.requestId}>
+              <p className="font-bold">Bác sĩ {request.doctorName} thuộc {request.facilityName} yêu cầu quyền truy cập hồ sơ.</p>
+              <p className="mt-1 muted">{request.reason}</p>
+              <p className="mt-2 text-xs font-semibold text-slate-500">{request.status} · {new Date(request.createdAt).toLocaleString("vi-VN")}</p>
+              {request.status === "PENDING" && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="btn-primary" disabled={!!busy} onClick={() => changeAccess(request.facilityId, true, request.requestId)}>
+                    Đồng ý và ký MetaMask
+                  </button>
+                  <button className="btn-danger" onClick={() => reject(request.requestId)}>Từ chối</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 }

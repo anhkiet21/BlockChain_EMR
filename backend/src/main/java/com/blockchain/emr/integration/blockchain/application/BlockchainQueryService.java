@@ -27,6 +27,11 @@ public class BlockchainQueryService {
         return blockchainService.hasAccess(normalize(patientWallet), normalize(granteeWallet));
     }
 
+    public boolean hasFacilityAccess(Long userId, boolean admin, String patientWallet, String facilityId) {
+        requireOwnedWallet(userId, admin, patientWallet);
+        return blockchainService.hasFacilityAccess(normalize(patientWallet), facilityId);
+    }
+
     public OnChainRecord getRecord(Long userId, boolean admin, BigInteger recordId, String callerWallet) {
         requireOwnedWallet(userId, admin, callerWallet);
         return blockchainService.getRecord(recordId, normalize(callerWallet));

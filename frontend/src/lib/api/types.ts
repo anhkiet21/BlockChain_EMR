@@ -41,6 +41,11 @@ export type UnifiedMedicalRecord = {
   onChainRecordId: string; blockchainTxHash: string; createdAt: string;
 };
 
+export type RecordAuditLog = {
+  id: number; recordId?: number; medicalFileId?: number; medicalFileName?: string; action: string;
+  actorName: string; actorRoles: string[]; facilityId?: string; facilityName?: string; createdAt: string;
+};
+
 export type PatientProfile = {
   id: number; userId: number; patientCode: string; email: string; fullName: string; dateOfBirth?: string;
   gender?: string; phone?: string; address?: string; emergencyContactName?: string; emergencyContactPhone?: string; bloodType?: string;
@@ -72,9 +77,10 @@ export type MedicalRecord = {
 };
 
 export type AccessCheck = { patientWallet: string; granteeWallet: string; granted: boolean };
+export type FacilityAccessCheck = { patientWallet: string; facilityId: string; granted: boolean };
 
 export type TransactionState = {
-  transactionHash: string; found: boolean; success: boolean; blockNumber?: string; confirmations?: string;
+  transactionHash: string; status: "PENDING" | "SUCCESS" | "FAILED"; blockNumber?: string; failureReason?: string;
 };
 
 export type OnChainRecord = {

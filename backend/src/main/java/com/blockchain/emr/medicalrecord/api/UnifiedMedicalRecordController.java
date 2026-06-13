@@ -1,6 +1,7 @@
 package com.blockchain.emr.medicalrecord.api;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -22,6 +23,7 @@ import com.blockchain.emr.common.api.ApiResponse;
 import com.blockchain.emr.common.api.PageResponse;
 import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordRequest;
 import com.blockchain.emr.medicalrecord.api.dto.PendingRecordUploadResponse;
+import com.blockchain.emr.medicalrecord.api.dto.RecordAuditLogResponse;
 import com.blockchain.emr.medicalrecord.api.dto.UnifiedMedicalRecordResponse;
 import com.blockchain.emr.medicalrecord.application.MedicalFileService;
 import com.blockchain.emr.medicalrecord.application.UnifiedMedicalRecordService;
@@ -56,6 +58,13 @@ public class UnifiedMedicalRecordController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(service.patientRecords(user.id(), page, size));
+    }
+
+    @GetMapping("/patient/records/{recordId}/audit-logs")
+    ApiResponse<List<RecordAuditLogResponse>> patientAuditLogs(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long recordId) {
+        return ApiResponse.success(service.patientAuditLogs(user.id(), recordId));
     }
 
     @PostMapping(path = "/doctor/records", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

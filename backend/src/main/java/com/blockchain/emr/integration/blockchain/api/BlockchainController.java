@@ -39,6 +39,16 @@ public class BlockchainController {
                 queryService.hasAccess(user.id(), user.roles().contains("ADMIN"), patientWallet, granteeWallet)));
     }
 
+    @GetMapping("/facility-access")
+    ApiResponse<FacilityAccessResponse> facilityAccess(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam String patientWallet,
+            @RequestParam String facilityId) {
+        return ApiResponse.success(new FacilityAccessResponse(
+                patientWallet, facilityId,
+                queryService.hasFacilityAccess(user.id(), user.roles().contains("ADMIN"), patientWallet, facilityId)));
+    }
+
     @GetMapping("/records/{recordId}")
     ApiResponse<BlockchainService.OnChainRecord> record(
             @AuthenticationPrincipal AuthenticatedUser user,
@@ -60,4 +70,5 @@ public class BlockchainController {
     }
 
     record AccessResponse(String patientWallet, String granteeWallet, boolean granted) {}
+    record FacilityAccessResponse(String patientWallet, String facilityId, boolean granted) {}
 }

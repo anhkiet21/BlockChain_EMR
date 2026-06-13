@@ -40,10 +40,16 @@ class BlockchainApiTests {
     void requiresAuthenticationAndRejectsUnlinkedWalletsBeforeRpcCall() throws Exception {
         mockMvc.perform(get("/blockchain/access").param("patientWallet", WALLET_A).param("granteeWallet", WALLET_B))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/blockchain/facility-access").param("patientWallet", WALLET_A).param("facilityId", "BV001"))
+                .andExpect(status().isUnauthorized());
 
         String token = registerPatient();
         mockMvc.perform(get("/blockchain/access").header("Authorization", bearer(token))
                         .param("patientWallet", WALLET_A).param("granteeWallet", WALLET_B))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
+        mockMvc.perform(get("/blockchain/facility-access").header("Authorization", bearer(token))
+                        .param("patientWallet", WALLET_A).param("facilityId", "BV001"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
 

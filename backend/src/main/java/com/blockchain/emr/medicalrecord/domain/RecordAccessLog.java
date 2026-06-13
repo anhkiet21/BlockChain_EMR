@@ -3,10 +3,12 @@ package com.blockchain.emr.medicalrecord.domain;
 import java.time.Instant;
 import com.blockchain.emr.auth.domain.User;
 import jakarta.persistence.*;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "record_access_logs")
+@Getter
 @NoArgsConstructor
 public class RecordAccessLog {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;

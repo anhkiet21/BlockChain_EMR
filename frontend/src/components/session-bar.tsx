@@ -25,12 +25,12 @@ export function SessionBar() {
     <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
       <Link className="btn-secondary" href="/dashboard">{session.user.roles.join(", ")}</Link>
       <span className="hidden text-slate-600 lg:inline">{session.user.fullName}</span>
-      <button className="btn-secondary" onClick={logout}>Logout</button>
+      <button className="btn-secondary" onClick={logout}>Đăng xuất</button>
     </div>
   ) : (
     <div className="flex gap-2">
-      <Link className="btn-secondary" href="/register">Register</Link>
-      <Link className="btn-primary" href="/login">Login</Link>
+      <Link className="btn-secondary" href="/register">Đăng ký</Link>
+      <Link className="btn-primary" href="/login">Đăng nhập</Link>
     </div>
   );
 }

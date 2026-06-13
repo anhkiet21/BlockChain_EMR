@@ -1,6 +1,7 @@
 package com.blockchain.emr.medicalrecord.application;
 
 import java.math.BigInteger;
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +26,7 @@ import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 import com.blockchain.emr.medicalrecord.api.dto.ConfirmRecordRequest;
 import com.blockchain.emr.medicalrecord.api.dto.PendingRecordUploadResponse;
+import com.blockchain.emr.medicalrecord.api.dto.RecordAuditLogResponse;
 import com.blockchain.emr.medicalrecord.api.dto.UnifiedMedicalRecordResponse;
 import com.blockchain.emr.medicalrecord.domain.MedicalFile;
 import com.blockchain.emr.medicalrecord.domain.MedicalRecord;
@@ -194,6 +196,19 @@ public class UnifiedMedicalRecordService {
         return fileService.download(file);
     }
 
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('PATIENT') and #userId == authentication.principal.id")
+    public List<RecordAuditLogResponse> patientAuditLogs(Long userId, Long recordId) {
+        MedicalRecord record = records.findById(recordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        if (!record.getPatientProfile().getUser().getId().equals(userId)) {
+            throw new AccessDeniedException("Medical record does not belong to the current patient");
+        }
+        return logs.findAllByMedicalRecordIdOrderByCreatedAtDescIdDesc(recordId).stream()
+                .map(this::auditResponse)
+                .toList();
+    }
+
     private void verifyOnChain(
             MedicalFile file,
             String patientWallet,
@@ -238,6 +253,28 @@ public class UnifiedMedicalRecordService {
                 record.getHealthcareFacility() == null ? null : record.getHealthcareFacility().getFacilityId(),
                 record.getHealthcareFacility() == null ? null : record.getHealthcareFacility().getName(),
                 record.getOnChainRecordId(), record.getBlockchainTxHash(), record.getCreatedAt());
+    }
+
+    private RecordAuditLogResponse auditResponse(RecordAccessLog log) {
+        MedicalRecord record = log.getMedicalRecord();
+        MedicalFile file = log.getMedicalFile();
+        var facility = record != null && record.getHealthcareFacility() != null
+                ? record.getHealthcareFacility()
+                : file == null ? null : file.getHealthcareFacility();
+        return new RecordAuditLogResponse(
+                log.getId(),
+                record == null ? null : record.getId(),
+                file == null ? null : file.getId(),
+                file == null ? null : file.getOriginalFilename(),
+                log.getAction(),
+                log.getActor().getFullName(),
+                log.getActor().getRoles().stream()
+                        .map(role -> role.getName().name())
+                        .sorted()
+                        .toList(),
+                facility == null ? null : facility.getFacilityId(),
+                facility == null ? null : facility.getName(),
+                log.getCreatedAt());
     }
 
     private PatientProfile requirePatientUser(Long userId) {

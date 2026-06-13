@@ -21,25 +21,25 @@ export default function PatientFilesPage() {
     try {
       const page = await apiFetch<Page<MedicalFile>>("/medical-files/me?size=50");
       setFiles(page.content);
-      setMessage(`Da tai ${page.totalElements} file.`);
+      setMessage(`Đã tải ${page.totalElements} file.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Khong the tai danh sach file");
+      setMessage(error instanceof Error ? error.message : "Không thể tải danh sách file");
     }
   }
 
   async function upload(event: FormEvent) {
     event.preventDefault();
-    if (!file) return setMessage("Hay chon file.");
+    if (!file) return setMessage("Hãy chọn file.");
     setBusy(true);
     try {
       const body = new FormData();
       body.append("file", file);
       const uploaded = await apiFetch<MedicalFile>("/medical-files/me", { method: "POST", body });
-      setMessage(`Upload thanh cong: ${uploaded.originalFilename}`);
+      setMessage(`Upload thành công: ${uploaded.originalFilename}`);
       setFile(null);
       await loadFiles();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Upload that bai");
+      setMessage(error instanceof Error ? error.message : "Upload thất bại");
     } finally {
       setBusy(false);
     }
@@ -55,7 +55,7 @@ export default function PatientFilesPage() {
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Khong the tai file");
+      setMessage(error instanceof Error ? error.message : "Không thể tải file");
     }
   }
 
@@ -64,26 +64,26 @@ export default function PatientFilesPage() {
   return (
     <section className="grid gap-6">
       <div>
-        <p className="label text-blue-700">Patient storage</p>
-        <h1 className="mt-2 text-3xl font-bold">File benh an cua toi</h1>
-        <p className="mt-2 text-slate-600">Test ma hoa file, upload storage/IPFS va tai lai file cua chinh benh nhan.</p>
+        <p className="badge">Kho lưu trữ bệnh nhân</p>
+        <h1 className="mt-3 section-title">File bệnh án của tôi</h1>
+        <p className="mt-2 text-slate-600">Kiểm thử mã hóa file, upload storage/IPFS và tải lại file của chính bệnh nhân.</p>
       </div>
 
       <form className="card grid gap-4" onSubmit={upload}>
-        <h2 className="text-lg font-bold">Upload file rieng</h2>
+        <h2 className="text-lg font-black">Upload file riêng</h2>
         <input className="input" type="file" accept=".json,.pdf,image/jpeg,image/png" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
         {message && <p className="status">{message}</p>}
-        <button className="btn-primary w-fit" disabled={busy || !file}>{busy ? "Dang upload..." : "Upload file"}</button>
+        <button className="btn-primary w-fit" disabled={busy || !file}>{busy ? "Đang upload..." : "Upload file"}</button>
       </form>
 
       <div className="card">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold">Danh sach file</h2>
-          <button className="btn-secondary" onClick={loadFiles}>Lam moi</button>
+          <h2 className="text-lg font-black">Danh sách file</h2>
+          <button className="btn-secondary" onClick={loadFiles}>Làm mới</button>
         </div>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>ID</th><th>Ten file</th><th>Loai</th><th>Kich thuoc</th><th>Thoi gian</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Tên file</th><th>Loại</th><th>Kích thước</th><th>Thời gian</th><th></th></tr></thead>
             <tbody>
               {files.map((item) => (
                 <tr key={item.id}>
@@ -92,10 +92,10 @@ export default function PatientFilesPage() {
                   <td>{item.contentType}</td>
                   <td>{item.originalSize} bytes</td>
                   <td>{new Date(item.createdAt).toLocaleString("vi-VN")}</td>
-                  <td><button className="btn-secondary" onClick={() => download(item)}>Tai file</button></td>
+                  <td><button className="btn-secondary" onClick={() => download(item)}>Tải file</button></td>
                 </tr>
               ))}
-              {!files.length && <tr><td colSpan={6} className="text-center text-slate-500">Chua co file.</td></tr>}
+              {!files.length && <tr><td colSpan={6} className="text-center text-slate-500">Chưa có file.</td></tr>}
             </tbody>
           </table>
         </div>
