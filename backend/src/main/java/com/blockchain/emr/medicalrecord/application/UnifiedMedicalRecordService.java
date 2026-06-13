@@ -124,19 +124,22 @@ public class UnifiedMedicalRecordService {
         if (recordFiles.existsByMedicalFileId(request.medicalFileId())) {
             throw new ApplicationException(ErrorCode.CONFLICT, "Medical file is already attached");
         }
-        var state = blockchain.getTransactionState(request.transactionHash());
-        if (state.status() != BlockchainService.TransactionState.Status.SUCCESS) {
-            throw new ApplicationException(ErrorCode.CONFLICT, "Blockchain transaction is not successful");
-        }
         String callerWallet = requireWallet(userId).getAddress();
         String patientWallet = requireWallet(file.getPatientProfile().getUser().getId()).getAddress();
+        DoctorProfile doctor = null;
+        if (file.getSourceType() == MedicalRecordSourceType.DOCTOR_UPLOADED) {
+            doctor = requireDoctor(userId);
+            if (file.getHealthcareFacility() == null
+                    || !file.getHealthcareFacility().getId().equals(doctor.getHealthcareFacility().getId())
+                    || !access.canDoctorAccessPatient(userId, file.getPatientProfile().getId())) {
+                throw new AccessDeniedException("Facility access was revoked or doctor affiliation changed");
+            }
+        }
+        verifyRecordTransaction(file, patientWallet, callerWallet, request);
         var onChain = blockchain.getRecord(request.onChainRecordId(), callerWallet);
         var metadata = blockchain.getRecordMetadata(request.onChainRecordId(), callerWallet);
         verifyOnChain(file, patientWallet, callerWallet, onChain, metadata);
 
-        DoctorProfile doctor = file.getSourceType() == MedicalRecordSourceType.DOCTOR_UPLOADED
-                ? requireDoctor(userId)
-                : null;
         MedicalRecord record = records.save(new MedicalRecord(
                 file.getPatientProfile(),
                 doctor,
@@ -153,6 +156,37 @@ public class UnifiedMedicalRecordService {
         recordFiles.save(new MedicalRecordFile(record, file));
         logs.save(new RecordAccessLog(record, file, file.getUploadedBy(), "CREATE"));
         return response(record);
+    }
+
+    private void verifyRecordTransaction(
+            MedicalFile file,
+            String patientWallet,
+            String uploaderWallet,
+            ConfirmRecordRequest request) {
+        String facilityId = file.getHealthcareFacility() == null
+                ? null
+                : file.getHealthcareFacility().getFacilityId();
+        var expected = blockchain.prepareRecordTransaction(
+                uploaderWallet, patientWallet, file.getCid(), file.getContentHash(),
+                file.getSourceType().name(), facilityId);
+        var transaction = blockchain.getRecordTransaction(request.transactionHash());
+        if (transaction.status() == BlockchainService.TransactionState.Status.PENDING) {
+            throw new ApplicationException(ErrorCode.CONFLICT, "Blockchain transaction has not been mined");
+        }
+        var event = transaction.recordEvent();
+        boolean valid = transaction.status() == BlockchainService.TransactionState.Status.SUCCESS
+                && equalsIgnoreCase(transaction.from(), expected.from())
+                && equalsIgnoreCase(transaction.to(), expected.to())
+                && equalsIgnoreCase(transaction.input(), expected.data())
+                && event != null
+                && equalsIgnoreCase(event.transactionHash(), transaction.transactionHash())
+                && event.recordId().equals(request.onChainRecordId())
+                && equalsIgnoreCase(event.patientWallet(), patientWallet)
+                && equalsIgnoreCase(event.authorWallet(), uploaderWallet)
+                && event.cid().equals(file.getCid());
+        if (!valid) {
+            throw new AccessDeniedException("Blockchain transaction does not match the uploaded medical record");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -308,5 +342,9 @@ public class UnifiedMedicalRecordService {
     private String normalizeHash(String hash) {
         String normalized = hash == null ? "" : hash.toLowerCase(Locale.ROOT);
         return normalized.startsWith("0x") ? normalized.substring(2) : normalized;
+    }
+
+    private boolean equalsIgnoreCase(String left, String right) {
+        return left != null && right != null && left.equalsIgnoreCase(right);
     }
 }

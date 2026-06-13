@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 import java.math.BigInteger;
+import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -83,5 +84,27 @@ class FacilityAccessServiceTests {
         service.prepare(PATIENT_USER_ID, new FacilityAccessChangeRequest("BV001", true));
 
         verify(blockchain).prepareFacilityAccessTransaction(PATIENT_WALLET, "BV001", true);
+    }
+
+    @Test
+    void rejectsSuccessfulButUnrelatedFacilityTransaction() {
+        String hash = "0x" + "a".repeat(64);
+        var expected = new BlockchainService.PreparedTransaction(
+                PATIENT_WALLET, "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+                "0x52fc466b", BigInteger.valueOf(31337), "0x0");
+        var event = new BlockchainService.FacilityAccessEvent(
+                hash, 0, BigInteger.ONE, PATIENT_WALLET, "BV001", true, Instant.now());
+        var transaction = new BlockchainService.FacilityAccessTransaction(
+                hash, PATIENT_WALLET, expected.to(), "0xdeadbeef",
+                BlockchainService.TransactionState.Status.SUCCESS, BigInteger.ONE, null, event);
+        when(blockchain.prepareFacilityAccessTransaction(PATIENT_WALLET, "BV001", true)).thenReturn(expected);
+        when(blockchain.getFacilityAccessTransaction(hash)).thenReturn(transaction);
+        when(blockchain.hasFacilityAccess(PATIENT_WALLET, "BV001")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.confirm(
+                PATIENT_USER_ID, new FacilityAccessChangeRequest("BV001", true), hash))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        verify(grants, never()).save(any());
     }
 }

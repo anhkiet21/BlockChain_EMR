@@ -10,7 +10,12 @@ public interface BlockchainService {
     boolean hasFacilityAccess(String patientWallet, String facilityId);
     PreparedTransaction prepareAccessTransaction(String patientWallet, String granteeWallet, boolean granted);
     PreparedTransaction prepareFacilityAccessTransaction(String patientWallet, String facilityId, boolean granted);
+    PreparedTransaction prepareRecordTransaction(
+            String uploaderWallet, String patientWallet, String cid, String contentHash,
+            String sourceType, String facilityId);
     AccessTransaction getAccessTransaction(String transactionHash);
+    FacilityAccessTransaction getFacilityAccessTransaction(String transactionHash);
+    RecordTransaction getRecordTransaction(String transactionHash);
     OnChainRecord getRecord(BigInteger recordId, String callerWallet);
     OnChainRecordMetadata getRecordMetadata(BigInteger recordId, String callerWallet);
     TransactionState getTransactionState(String transactionHash);
@@ -32,12 +37,21 @@ public interface BlockchainService {
     record AccessTransaction(
             String transactionHash, String from, String to, String input, TransactionState.Status status,
             BigInteger blockNumber, String failureReason, AccessEvent accessEvent) {}
+    record FacilityAccessTransaction(
+            String transactionHash, String from, String to, String input, TransactionState.Status status,
+            BigInteger blockNumber, String failureReason, FacilityAccessEvent facilityAccessEvent) {}
+    record RecordTransaction(
+            String transactionHash, String from, String to, String input, TransactionState.Status status,
+            BigInteger blockNumber, String failureReason, RecordEvent recordEvent) {}
     record TransactionState(String transactionHash, Status status, BigInteger blockNumber, String failureReason) {
         public enum Status { PENDING, SUCCESS, FAILED }
     }
     record AccessEvent(
             String transactionHash, long logIndex, BigInteger blockNumber,
             String patientWallet, String granteeWallet, boolean granted, Instant occurredAt) {}
+    record FacilityAccessEvent(
+            String transactionHash, long logIndex, BigInteger blockNumber,
+            String patientWallet, String facilityId, boolean granted, Instant occurredAt) {}
     record RecordEvent(
             String transactionHash, long logIndex, BigInteger blockNumber, BigInteger recordId,
             String patientWallet, String authorWallet, String cid, Instant occurredAt) {}

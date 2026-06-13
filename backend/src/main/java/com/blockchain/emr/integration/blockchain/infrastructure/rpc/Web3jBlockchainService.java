@@ -15,6 +15,8 @@ import org.web3j.abi.FunctionEncoder;
 import org.web3j.abi.FunctionReturnDecoder;
 import org.web3j.abi.datatypes.Address;
 import org.web3j.abi.datatypes.Function;
+import org.web3j.abi.datatypes.Utf8String;
+import org.web3j.abi.datatypes.generated.Uint8;
 import org.web3j.crypto.WalletUtils;
 import org.web3j.protocol.Web3j;
 import org.web3j.protocol.exceptions.ClientConnectionException;
@@ -81,6 +83,37 @@ public class Web3jBlockchainService implements BlockchainService {
     }
 
     @Override
+    public PreparedTransaction prepareRecordTransaction(
+            String uploaderWallet,
+            String patientWallet,
+            String cid,
+            String contentHash,
+            String sourceType,
+            String facilityId) {
+        validateAddress(uploaderWallet);
+        validateAddress(patientWallet);
+        int source = switch (sourceType) {
+            case "PATIENT_UPLOADED" -> 1;
+            case "DOCTOR_UPLOADED" -> 2;
+            default -> throw BlockchainException.readFailed();
+        };
+        byte[] hash = hashBytes(contentHash);
+        byte[] facility = source == 1 ? new byte[32] : facilityBytes(facilityId);
+        Function function = new Function(
+                "createRecordWithMetadata",
+                List.of(
+                        new Address(patientWallet),
+                        new Utf8String(cid),
+                        new org.web3j.abi.datatypes.generated.Bytes32(hash),
+                        new Uint8(source),
+                        new org.web3j.abi.datatypes.generated.Bytes32(facility)),
+                List.of());
+        BigInteger chainId = execute(() -> web3j.ethChainId().send().getChainId());
+        return new PreparedTransaction(normalize(uploaderWallet), contractAddress,
+                FunctionEncoder.encode(function), chainId, "0x0");
+    }
+
+    @Override
     public AccessTransaction getAccessTransaction(String transactionHash) {
         validateTransactionHash(transactionHash);
         Transaction transaction = execute(() -> web3j.ethGetTransactionByHash(transactionHash).send().getTransaction())
@@ -99,6 +132,31 @@ public class Web3jBlockchainService implements BlockchainService {
         return new AccessTransaction(transactionHash, normalize(transaction.getFrom()), normalize(transaction.getTo()),
                 transaction.getInput(), value.isStatusOK() ? TransactionState.Status.SUCCESS : TransactionState.Status.FAILED,
                 value.getBlockNumber(), value.isStatusOK() ? null : value.getRevertReason(), event);
+    }
+
+    @Override
+    public FacilityAccessTransaction getFacilityAccessTransaction(String transactionHash) {
+        TransactionContext context = transactionContext(transactionHash);
+        FacilityAccessEvent event = context.receipt().map(receipt -> receipt.getLogs().stream()
+                .filter(log -> normalize(log.getAddress()).equals(contractAddress))
+                .filter(this::isFacilityAccessEvent)
+                .findFirst().map(this::facilityAccessEvent).orElse(null)).orElse(null);
+        return new FacilityAccessTransaction(
+                transactionHash, normalize(context.transaction().getFrom()), normalize(context.transaction().getTo()),
+                context.transaction().getInput(), context.status(), context.blockNumber(), context.failureReason(), event);
+    }
+
+    @Override
+    public RecordTransaction getRecordTransaction(String transactionHash) {
+        TransactionContext context = transactionContext(transactionHash);
+        RecordEvent event = context.receipt().map(receipt -> receipt.getLogs().stream()
+                .filter(log -> normalize(log.getAddress()).equals(contractAddress))
+                .filter(log -> !log.getTopics().isEmpty()
+                        && log.getTopics().get(0).equals(EventEncoder.encode(MedicalRecordRegistry.RECORDCREATED_EVENT)))
+                .findFirst().map(this::recordEvent).orElse(null)).orElse(null);
+        return new RecordTransaction(
+                transactionHash, normalize(context.transaction().getFrom()), normalize(context.transaction().getTo()),
+                context.transaction().getInput(), context.status(), context.blockNumber(), context.failureReason(), event);
     }
 
     @Override
@@ -165,15 +223,7 @@ public class Web3jBlockchainService implements BlockchainService {
     @Override
     public List<RecordEvent> readRecordEvents(BigInteger fromBlock, BigInteger toBlock) {
         return logs(fromBlock, toBlock, MedicalRecordRegistry.RECORDCREATED_EVENT).stream()
-                .map(log -> {
-                    var data = FunctionReturnDecoder.decode(
-                            log.getData(), MedicalRecordRegistry.RECORDCREATED_EVENT.getNonIndexedParameters());
-                    return new RecordEvent(
-                            log.getTransactionHash(), log.getLogIndex().longValueExact(), log.getBlockNumber(),
-                            Numeric.toBigInt(log.getTopics().get(1)), decodeAddress(log.getTopics().get(2)),
-                            decodeAddress(log.getTopics().get(3)), (String) data.get(0).getValue(),
-                            blockTime(log.getBlockNumber()));
-                }).toList();
+                .map(this::recordEvent).toList();
     }
 
     private List<Log> logs(BigInteger fromBlock, BigInteger toBlock, org.web3j.abi.datatypes.Event event) {
@@ -199,11 +249,55 @@ public class Web3jBlockchainService implements BlockchainService {
                 granted, blockTime(log.getBlockNumber()));
     }
 
+    private FacilityAccessEvent facilityAccessEvent(Log log) {
+        boolean granted = log.getTopics().get(0)
+                .equals(EventEncoder.encode(MedicalRecordRegistry.FACILITYACCESSGRANTED_EVENT));
+        return new FacilityAccessEvent(
+                log.getTransactionHash(), log.getLogIndex().longValueExact(), log.getBlockNumber(),
+                decodeAddress(log.getTopics().get(1)), decodeBytes32Text(log.getTopics().get(2)),
+                granted, blockTime(log.getBlockNumber()));
+    }
+
+    private RecordEvent recordEvent(Log log) {
+        var data = FunctionReturnDecoder.decode(
+                log.getData(), MedicalRecordRegistry.RECORDCREATED_EVENT.getNonIndexedParameters());
+        return new RecordEvent(
+                log.getTransactionHash(), log.getLogIndex().longValueExact(), log.getBlockNumber(),
+                Numeric.toBigInt(log.getTopics().get(1)), decodeAddress(log.getTopics().get(2)),
+                decodeAddress(log.getTopics().get(3)), (String) data.get(0).getValue(),
+                blockTime(log.getBlockNumber()));
+    }
+
     private boolean isAccessEvent(Log log) {
         if (log.getTopics().isEmpty()) return false;
         String signature = log.getTopics().get(0);
         return signature.equals(EventEncoder.encode(MedicalRecordRegistry.ACCESSGRANTED_EVENT))
                 || signature.equals(EventEncoder.encode(MedicalRecordRegistry.ACCESSREVOKED_EVENT));
+    }
+
+    private boolean isFacilityAccessEvent(Log log) {
+        if (log.getTopics().isEmpty()) return false;
+        String signature = log.getTopics().get(0);
+        return signature.equals(EventEncoder.encode(MedicalRecordRegistry.FACILITYACCESSGRANTED_EVENT))
+                || signature.equals(EventEncoder.encode(MedicalRecordRegistry.FACILITYACCESSREVOKED_EVENT));
+    }
+
+    private TransactionContext transactionContext(String transactionHash) {
+        validateTransactionHash(transactionHash);
+        Transaction transaction = execute(() -> web3j.ethGetTransactionByHash(transactionHash).send().getTransaction())
+                .orElseThrow(BlockchainException::readFailed);
+        Optional<TransactionReceipt> receipt = execute(() ->
+                web3j.ethGetTransactionReceipt(transactionHash).send().getTransactionReceipt());
+        if (receipt.isEmpty()) {
+            return new TransactionContext(transaction, receipt, TransactionState.Status.PENDING, null, null);
+        }
+        TransactionReceipt value = receipt.get();
+        return new TransactionContext(
+                transaction,
+                receipt,
+                value.isStatusOK() ? TransactionState.Status.SUCCESS : TransactionState.Status.FAILED,
+                value.getBlockNumber(),
+                value.isStatusOK() ? null : value.getRevertReason());
     }
 
     private MedicalRecordRegistry contract(String caller) {
@@ -235,6 +329,13 @@ public class Web3jBlockchainService implements BlockchainService {
         return "0x" + topic.substring(topic.length() - 40).toLowerCase(Locale.ROOT);
     }
 
+    private String decodeBytes32Text(String value) {
+        byte[] bytes = Numeric.hexStringToByteArray(value);
+        int length = 0;
+        while (length < bytes.length && bytes[length] != 0) length++;
+        return new String(bytes, 0, length, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     private String normalize(String address) {
         return address == null ? "" : address.toLowerCase(Locale.ROOT);
     }
@@ -250,6 +351,20 @@ public class Web3jBlockchainService implements BlockchainService {
         }
         return java.util.Arrays.copyOf(source, 32);
     }
+
+    private byte[] hashBytes(String contentHash) {
+        if (contentHash == null) throw BlockchainException.readFailed();
+        String normalized = Numeric.cleanHexPrefix(contentHash.trim());
+        if (!normalized.matches("^[0-9a-fA-F]{64}$")) throw BlockchainException.readFailed();
+        return Numeric.hexStringToByteArray(normalized);
+    }
+
+    private record TransactionContext(
+            Transaction transaction,
+            Optional<TransactionReceipt> receipt,
+            TransactionState.Status status,
+            BigInteger blockNumber,
+            String failureReason) {}
 
     private <T> T execute(Callable<T> action) {
         try {

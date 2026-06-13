@@ -19,6 +19,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.blockchain.emr.auth.security.AuthenticatedUser;
+import com.blockchain.emr.auth.domain.WalletAddress;
+import com.blockchain.emr.auth.infrastructure.UserRepository;
+import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -32,6 +35,12 @@ class IdentityFacilityAdminFlowTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository users;
+
+    @Autowired
+    private WalletAddressRepository wallets;
 
     @Test
     void exposesSeededFacilitiesWithoutAuthentication() throws Exception {
@@ -88,6 +97,7 @@ class IdentityFacilityAdminFlowTests {
                 .andExpect(jsonPath("$.data.facility.facilityId").value("BV001"))
                 .andReturn();
         long doctorProfileId = read(profileResult).at("/data/id").asLong();
+        long doctorUserId = registration.at("/data/user/id").asLong();
 
         mockMvc.perform(get("/admin/doctors/pending")
                         .header("Authorization", bearer(doctorToken)))
@@ -96,6 +106,14 @@ class IdentityFacilityAdminFlowTests {
         mockMvc.perform(get("/admin/doctors/pending").with(user(adminPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[?(@.id == %s)]".formatted(doctorProfileId)).exists());
+
+        mockMvc.perform(post("/admin/doctors/{id}/verify", doctorProfileId)
+                        .with(user(adminPrincipal())))
+                .andExpect(status().isConflict());
+
+        wallets.save(new WalletAddress(
+                users.findById(doctorUserId).orElseThrow(),
+                "0x" + UUID.randomUUID().toString().replace("-", "") + "12345678"));
 
         mockMvc.perform(post("/admin/doctors/{id}/verify", doctorProfileId)
                         .with(user(adminPrincipal())))

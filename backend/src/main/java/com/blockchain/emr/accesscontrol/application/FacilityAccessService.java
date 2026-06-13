@@ -210,14 +210,29 @@ public class FacilityAccessService {
 
     private void verifyFacilityTransaction(
             String patientWallet, String facilityId, String transactionHash, boolean expectedGranted) {
-        var state = blockchain.getTransactionState(transactionHash);
-        if (state.status() == BlockchainService.TransactionState.Status.PENDING) {
+        var expected = blockchain.prepareFacilityAccessTransaction(patientWallet, facilityId, expectedGranted);
+        var transaction = blockchain.getFacilityAccessTransaction(transactionHash);
+        if (transaction.status() == BlockchainService.TransactionState.Status.PENDING) {
             throw new ApplicationException(ErrorCode.CONFLICT, "Transaction has not been mined");
         }
-        if (state.status() != BlockchainService.TransactionState.Status.SUCCESS
-                || blockchain.hasFacilityAccess(patientWallet, facilityId) != expectedGranted) {
+        var event = transaction.facilityAccessEvent();
+        boolean valid = transaction.status() == BlockchainService.TransactionState.Status.SUCCESS
+                && equalsIgnoreCase(transaction.from(), expected.from())
+                && equalsIgnoreCase(transaction.to(), expected.to())
+                && equalsIgnoreCase(transaction.input(), expected.data())
+                && event != null
+                && equalsIgnoreCase(event.transactionHash(), transaction.transactionHash())
+                && equalsIgnoreCase(event.patientWallet(), patientWallet)
+                && event.facilityId().equalsIgnoreCase(facilityId)
+                && event.granted() == expectedGranted
+                && blockchain.hasFacilityAccess(patientWallet, facilityId) == expectedGranted;
+        if (!valid) {
             throw new AccessDeniedException("Blockchain facility access does not match the request");
         }
+    }
+
+    private boolean equalsIgnoreCase(String left, String right) {
+        return left != null && right != null && left.equalsIgnoreCase(right);
     }
 
     private FacilityAccessGrant syncGrant(

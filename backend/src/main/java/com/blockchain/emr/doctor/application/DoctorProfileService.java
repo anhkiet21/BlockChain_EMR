@@ -111,6 +111,12 @@ public class DoctorProfileService {
     @PreAuthorize("hasRole('ADMIN')")
     public DoctorProfileResponse verify(Long profileId) {
         DoctorProfile profile = findProfile(profileId);
+        if (walletAddressRepository.findFirstByUserIdOrderByIdAsc(profile.getUser().getId()).isEmpty()) {
+            throw new ApplicationException(ErrorCode.CONFLICT, "Doctor must verify a wallet before approval");
+        }
+        if (profile.getHealthcareFacility() == null || !profile.getHealthcareFacility().isActive()) {
+            throw new ApplicationException(ErrorCode.INVALID_FACILITY);
+        }
         profile.verify();
         return toResponse(profile);
     }

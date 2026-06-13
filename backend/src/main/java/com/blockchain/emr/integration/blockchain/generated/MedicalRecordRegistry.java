@@ -37,6 +37,16 @@ public class MedicalRecordRegistry extends Contract {
                     new TypeReference<Address>(true) {},
                     new TypeReference<Address>(true) {}));
 
+    public static final Event FACILITYACCESSGRANTED_EVENT = new Event("FacilityAccessGranted",
+            Arrays.asList(
+                    new TypeReference<Address>(true) {},
+                    new TypeReference<Bytes32>(true) {}));
+
+    public static final Event FACILITYACCESSREVOKED_EVENT = new Event("FacilityAccessRevoked",
+            Arrays.asList(
+                    new TypeReference<Address>(true) {},
+                    new TypeReference<Bytes32>(true) {}));
+
     public static final Event RECORDCREATED_EVENT = new Event("RecordCreated",
             Arrays.asList(
                     new TypeReference<Uint256>(true) {},

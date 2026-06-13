@@ -11,6 +11,9 @@ references. Plaintext medical or identity data must remain off-chain.
   backend facility membership and the matching on-chain facility grant.
 - The backend verifies the mined transaction and synchronizes its SQL projection;
   SQL state alone never authorizes medical-record access.
+- Confirmation binds the submitted transaction hash to the patient wallet,
+  contract address, exact facility calldata, and `FacilityAccessGranted` or
+  `FacilityAccessRevoked` event.
 
 Legacy wallet-to-wallet grant functions remain for compatibility, but the new
 patient and doctor workflows do not use them.
@@ -24,6 +27,12 @@ version reference. It does not store profile fields or plaintext record content.
 `sourceType` distinguishes `PATIENT_UPLOADED` and `DOCTOR_UPLOADED`. Doctor
 records carry a facility identifier so the backend can enforce the same consent
 boundary when listing or downloading content.
+
+Before accepting a record, the backend verifies the exact
+`createRecordWithMetadata` calldata and `RecordCreated` event, then compares the
+stored CID, hash, patient, uploader, source type, and facility. For doctor
+uploads it also rechecks verified status, current facility membership, and
+patient consent at confirmation time.
 
 ## Deployment
 
