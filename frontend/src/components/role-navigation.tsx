@@ -16,7 +16,6 @@ const ROLE_LINKS: Record<string, NavigationLink[]> = {
   ],
   ADMIN: [
     { href: "/admin", label: "Quản trị" },
-    { href: "/blockchain", label: "Kiểm tra hệ thống" },
   ],
 };
 

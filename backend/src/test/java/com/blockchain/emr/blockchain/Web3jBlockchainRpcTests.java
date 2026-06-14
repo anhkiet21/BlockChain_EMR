@@ -24,11 +24,10 @@ class Web3jBlockchainRpcTests {
         String patient = System.getenv("SMOKE_PATIENT_WALLET");
         String doctor = System.getenv("SMOKE_DOCTOR_WALLET");
         String transaction = System.getenv("SMOKE_TRANSACTION_HASH");
-        String accessTransaction = System.getenv("SMOKE_ACCESS_TRANSACTION_HASH");
         String facilityTransaction = System.getenv("SMOKE_FACILITY_ACCESS_TRANSACTION_HASH");
         String metadataTransaction = System.getenv("SMOKE_METADATA_TRANSACTION_HASH");
 
-        assertThat(blockchainService.hasAccess(patient, doctor)).isTrue();
+        assertThat(blockchainService.hasFacilityAccess(patient, "BV001")).isTrue();
         var record = blockchainService.getRecord(BigInteger.ZERO, doctor);
         assertThat(record.cid()).isEqualTo("bafy-backend-smoke-cid");
         assertThat(record.contentHash()).matches("^0x[0-9a-f]{64}$");
@@ -37,7 +36,6 @@ class Web3jBlockchainRpcTests {
         assertThat(metadata.sourceType()).isEqualTo("PATIENT_UPLOADED");
         assertThat(metadata.uploaderWallet()).isEqualTo(patient.toLowerCase());
         assertThat(metadata.facilityId()).isEmpty();
-        assertThat(blockchainService.getAccessTransaction(accessTransaction).accessEvent().granted()).isTrue();
         var facilityAccess = blockchainService.getFacilityAccessTransaction(facilityTransaction);
         assertThat(facilityAccess.facilityAccessEvent().facilityId()).isEqualTo("BV001");
         assertThat(facilityAccess.facilityAccessEvent().granted()).isTrue();
@@ -47,7 +45,6 @@ class Web3jBlockchainRpcTests {
         assertThat(blockchainService.getTransactionState(transaction).status())
                 .isEqualTo(BlockchainService.TransactionState.Status.SUCCESS);
         BigInteger latest = blockchainService.latestBlock();
-        assertThat(blockchainService.readAccessEvents(BigInteger.ZERO, latest)).hasSize(1);
         assertThat(blockchainService.readRecordEvents(BigInteger.ZERO, latest)).hasSize(2);
     }
 }

@@ -29,16 +29,6 @@ public class BlockchainController {
         this.eventSyncService = eventSyncService;
     }
 
-    @GetMapping("/access")
-    ApiResponse<AccessResponse> access(
-            @AuthenticationPrincipal AuthenticatedUser user,
-            @RequestParam String patientWallet,
-            @RequestParam String granteeWallet) {
-        return ApiResponse.success(new AccessResponse(
-                patientWallet, granteeWallet,
-                queryService.hasAccess(user.id(), user.roles().contains("ADMIN"), patientWallet, granteeWallet)));
-    }
-
     @GetMapping("/facility-access")
     ApiResponse<FacilityAccessResponse> facilityAccess(
             @AuthenticationPrincipal AuthenticatedUser user,
@@ -69,6 +59,5 @@ public class BlockchainController {
         return ApiResponse.success(eventSyncService.sync());
     }
 
-    record AccessResponse(String patientWallet, String granteeWallet, boolean granted) {}
     record FacilityAccessResponse(String patientWallet, String facilityId, boolean granted) {}
 }

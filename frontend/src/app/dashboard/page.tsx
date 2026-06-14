@@ -10,7 +10,6 @@ const CARDS = [
   { role: "DOCTOR", href: "/doctor/records", title: "Không gian bác sĩ", text: "Tìm bệnh nhân, gửi yêu cầu, tạo bệnh án và tải tệp khi có quyền." },
   { role: "ADMIN", href: "/admin", title: "Quản trị hệ thống", text: "Xác minh, từ chối và khóa tài khoản bác sĩ." },
   { role: "ALL", href: "/profile", title: "Hồ sơ và ví", text: "Cập nhật hồ sơ và liên kết ví bằng chữ ký MetaMask." },
-  { role: "ADMIN", href: "/blockchain", title: "Kiểm tra hệ thống", text: "Kiểm tra trạng thái giao dịch và dữ liệu xác minh." },
 ];
 
 const ROLE_LABELS: Record<string, string> = {

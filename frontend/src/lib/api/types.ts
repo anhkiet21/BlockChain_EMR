@@ -130,15 +130,6 @@ export type EmergencyAccessLog = {
   active: boolean;
 };
 
-export type AccessHistory = {
-  id: number; doctorProfileId: number; doctorCode: string; doctorName: string; granted: boolean;
-  transactionHash: string; blockNumber: string; occurredAt: string; verifiedAt: string;
-};
-
-export type PreparedAccessTransaction = {
-  from: string; to: string; data: string; chainId: string; value: string; doctorProfileId: number; granted: boolean;
-};
-
 export type UploadedFile = { fileId: number; cid: string; contentHash: string };
 
 export type MedicalFile = {
@@ -151,7 +142,6 @@ export type MedicalRecord = {
   successorRecordId?: number; correctionReason?: string; correctedAt?: string; createdAt: string; files: MedicalFile[];
 };
 
-export type AccessCheck = { patientWallet: string; granteeWallet: string; granted: boolean };
 export type FacilityAccessCheck = { patientWallet: string; facilityId: string; granted: boolean };
 
 export type TransactionState = {

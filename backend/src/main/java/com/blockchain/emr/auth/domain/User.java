@@ -82,6 +82,10 @@ public class User {
         this.fullName = fullName;
     }
 
+    public void addRole(Role role) {
+        roles.add(role);
+    }
+
     public void lock() {
         enabled = false;
     }

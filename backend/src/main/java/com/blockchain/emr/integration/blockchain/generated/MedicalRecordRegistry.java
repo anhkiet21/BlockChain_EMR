@@ -6,8 +6,8 @@ import java.util.Collections;
 
 import org.web3j.abi.TypeReference;
 import org.web3j.abi.datatypes.Address;
-import org.web3j.abi.datatypes.Bool;
 import org.web3j.abi.datatypes.generated.Bytes32;
+import org.web3j.abi.datatypes.Bool;
 import org.web3j.abi.datatypes.DynamicStruct;
 import org.web3j.abi.datatypes.Event;
 import org.web3j.abi.datatypes.Function;
@@ -27,22 +27,17 @@ public class MedicalRecordRegistry extends Contract {
 
     public static final String BINARY = "";
 
-    public static final Event ACCESSGRANTED_EVENT = new Event("AccessGranted",
-            Arrays.asList(
-                    new TypeReference<Address>(true) {},
-                    new TypeReference<Address>(true) {}));
-
-    public static final Event ACCESSREVOKED_EVENT = new Event("AccessRevoked",
-            Arrays.asList(
-                    new TypeReference<Address>(true) {},
-                    new TypeReference<Address>(true) {}));
-
     public static final Event FACILITYACCESSGRANTED_EVENT = new Event("FacilityAccessGranted",
             Arrays.asList(
                     new TypeReference<Address>(true) {},
                     new TypeReference<Bytes32>(true) {}));
 
     public static final Event FACILITYACCESSREVOKED_EVENT = new Event("FacilityAccessRevoked",
+            Arrays.asList(
+                    new TypeReference<Address>(true) {},
+                    new TypeReference<Bytes32>(true) {}));
+
+    public static final Event DOCTORFACILITYCHANGED_EVENT = new Event("DoctorFacilityChanged",
             Arrays.asList(
                     new TypeReference<Address>(true) {},
                     new TypeReference<Bytes32>(true) {}));
@@ -64,20 +59,20 @@ public class MedicalRecordRegistry extends Contract {
         super(BINARY, contractAddress, web3j, transactionManager, contractGasProvider);
     }
 
-    public RemoteFunctionCall<Boolean> accessGrants(String patient, String grantee) {
-        Function function = new Function(
-                "accessGrants",
-                Arrays.asList(new Address(160, patient), new Address(160, grantee)),
-                Collections.singletonList(new TypeReference<Bool>() {}));
-        return executeRemoteCallSingleValueReturn(function, Boolean.class);
-    }
-
     public RemoteFunctionCall<Boolean> facilityAccessGrants(String patient, byte[] facilityId) {
         Function function = new Function(
                 "facilityAccessGrants",
                 Arrays.asList(new Address(160, patient), new Bytes32(facilityId)),
                 Collections.singletonList(new TypeReference<Bool>() {}));
         return executeRemoteCallSingleValueReturn(function, Boolean.class);
+    }
+
+    public RemoteFunctionCall<byte[]> doctorFacilities(String doctor) {
+        Function function = new Function(
+                "doctorFacilities",
+                Collections.singletonList(new Address(160, doctor)),
+                Collections.singletonList(new TypeReference<Bytes32>() {}));
+        return executeRemoteCallSingleValueReturn(function, byte[].class);
     }
 
     public RemoteFunctionCall<Boolean> activeFacilities(byte[] facilityId) {

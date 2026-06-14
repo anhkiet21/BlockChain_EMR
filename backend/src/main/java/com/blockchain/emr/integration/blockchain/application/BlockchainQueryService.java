@@ -22,11 +22,6 @@ public class BlockchainQueryService {
         this.walletRepository = walletRepository;
     }
 
-    public boolean hasAccess(Long userId, boolean admin, String patientWallet, String granteeWallet) {
-        requireOwnedWallet(userId, admin, patientWallet, granteeWallet);
-        return blockchainService.hasAccess(normalize(patientWallet), normalize(granteeWallet));
-    }
-
     public boolean hasFacilityAccess(Long userId, boolean admin, String patientWallet, String facilityId) {
         requireOwnedWallet(userId, admin, patientWallet);
         return blockchainService.hasFacilityAccess(normalize(patientWallet), facilityId);

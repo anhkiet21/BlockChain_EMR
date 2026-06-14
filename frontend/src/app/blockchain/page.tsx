@@ -2,13 +2,11 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { apiFetch, getSession } from "@/lib/api/client";
-import { FacilityAccessCheck, OnChainRecord, TransactionState } from "@/lib/api/types";
+import { FacilityAccessCheck, TransactionState } from "@/lib/api/types";
 
 export default function BlockchainPage() {
   const [patientWallet, setPatientWallet] = useState("");
   const [facilityId, setFacilityId] = useState("BV001");
-  const [recordId, setRecordId] = useState("");
-  const [callerWallet, setCallerWallet] = useState("");
   const [transactionHash, setTransactionHash] = useState("");
   const [message, setMessage] = useState("");
   const [result, setResult] = useState<{ label: string; value: string }[]>([]);
@@ -17,8 +15,6 @@ export default function BlockchainPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setRecordId(params.get("recordId") ?? "");
-    setCallerWallet(params.get("callerWallet") ?? "");
     setTransactionHash(params.get("transactionHash") ?? "");
   }, []);
 
@@ -35,23 +31,6 @@ export default function BlockchainPage() {
       setMessage("Đã kiểm tra quyền truy cập.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Không thể kiểm tra quyền cơ sở y tế");
-    }
-  }
-
-  async function getRecord(event: FormEvent) {
-    event.preventDefault();
-    try {
-      const data = await apiFetch<OnChainRecord>(`/blockchain/records/${recordId}?callerWallet=${callerWallet}`);
-      setResult([
-        { label: "Mã hồ sơ", value: data.recordId },
-        { label: "Ví bệnh nhân", value: data.patientWallet },
-        { label: "Ví người tạo", value: data.authorWallet },
-        { label: "Mã lưu trữ", value: data.cid },
-        { label: "Trạng thái", value: data.exists ? "Tồn tại" : "Không tồn tại" },
-      ]);
-      setMessage("Đã kiểm tra hồ sơ.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Không thể đọc record");
     }
   }
 
@@ -89,7 +68,7 @@ export default function BlockchainPage() {
       </div>
       {message && <p className="status">{message}</p>}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-2">
         <form className="card grid gap-4" onSubmit={checkFacilityAccess}>
           <div>
             <h2 className="text-lg font-black">Kiểm tra quyền cơ sở y tế</h2>
@@ -109,13 +88,6 @@ export default function BlockchainPage() {
             onChange={(event) => setFacilityId(event.target.value.toUpperCase())}
           />
           <button className="btn-primary">Kiểm tra</button>
-        </form>
-
-        <form className="card grid gap-4" onSubmit={getRecord}>
-          <h2 className="text-lg font-black">Kiểm tra hồ sơ</h2>
-          <input className="input" required type="number" min="0" placeholder="Mã hồ sơ xác minh" value={recordId} onChange={(e) => setRecordId(e.target.value)} />
-          <input className="input font-mono" required placeholder="Địa chỉ ví kiểm tra" value={callerWallet} onChange={(e) => setCallerWallet(e.target.value)} />
-          <button className="btn-primary">Kiểm tra hồ sơ</button>
         </form>
 
         <form className="card grid gap-4" onSubmit={getTransaction}>

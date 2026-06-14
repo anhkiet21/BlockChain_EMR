@@ -7,11 +7,10 @@ export const registryAbi = [
   "error AccessAlreadyRevoked(address patient,address grantee)",
   "error AccessDenied(address patient,address caller)",
   "error InvalidFacility()",
-  "function createRecord(address patient,string cid,bytes32 contentHash) returns (uint256)",
-  "function createRecordVersion(uint256 previousRecordId,string cid,bytes32 contentHash) returns (uint256)",
+  "error InvalidDoctor()",
+  "function createRecordWithMetadata(address patient,string cid,bytes32 contentHash,uint8 sourceType,bytes32 facilityId) returns (uint256)",
   "function createRecordVersionWithMetadata(uint256 previousRecordId,string cid,bytes32 contentHash,bytes32 facilityId) returns (uint256)",
   "event RecordCreated(uint256 indexed recordId,address indexed patient,address indexed author,string cid,bytes32 contentHash,uint256 previousRecordId)",
-  "function createRecordWithMetadata(address patient,string cid,bytes32 contentHash,uint8 sourceType,bytes32 facilityId) returns (uint256)",
 ] as const;
 
 type EthereumProvider = {
@@ -126,6 +125,7 @@ function readableContractError(error: unknown) {
       if (parsed?.name === "AccessAlreadyRevoked") return "Quyền truy cập này đã được thu hồi.";
       if (parsed?.name === "AccessDenied") return "Ví hiện tại không có quyền thực hiện giao dịch này.";
       if (parsed?.name === "InvalidFacility") return "Cơ sở y tế không hợp lệ hoặc chưa được kích hoạt.";
+      if (parsed?.name === "InvalidDoctor") return "Ví bác sĩ không hợp lệ hoặc chưa thuộc cơ sở y tế.";
     } catch {
       // Fall through to the wallet-provided message for unknown contract errors.
     }
@@ -136,45 +136,18 @@ function readableContractError(error: unknown) {
   return "Giao dịch thất bại. Vui lòng kiểm tra MetaMask và thử lại.";
 }
 
-export async function createOnChainRecord(patientWallet: string, doctorWallet: string, cid: string, contentHash: string) {
-  const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-  if (!contractAddress || !ethers.isAddress(contractAddress)) {
-    throw new Error("Hệ thống xác minh chưa được cấu hình.");
-  }
-  const { signer, address } = await connectWallet();
-  if (address.toLowerCase() !== doctorWallet.toLowerCase()) {
-    throw new Error("Ví MetaMask hiện tại không khớp ví bác sĩ đã xác minh.");
-  }
-  const contract = new Contract(contractAddress, registryAbi, signer);
-  const hash = contentHash.startsWith("0x") ? contentHash : `0x${contentHash}`;
-  let receipt: TransactionReceipt | null;
-  try {
-    receipt = await contract.createRecord(patientWallet, cid, hash)
-      .then((tx: { wait(): Promise<TransactionReceipt> }) => tx.wait());
-  } catch (error) {
-    throw new Error(readableContractError(error));
-  }
-  if (!receipt) throw new Error("Không nhận được kết quả giao dịch.");
-  const parser = new Interface(registryAbi);
-  for (const log of receipt.logs) {
-    try {
-      const parsed = parser.parseLog(log);
-      if (parsed?.name === "RecordCreated") return { recordId: parsed.args.recordId.toString(), transactionHash: receipt.hash };
-    } catch {
-      // Ignore logs emitted by other contracts.
-    }
-  }
-  throw new Error("Giao dịch thành công nhưng không thể xác nhận hồ sơ.");
-}
-
 export async function createOnChainRecordWithMetadata(input: {
   patientWallet: string; uploaderWallet: string; cid: string; contentHash: string;
   sourceType: "PATIENT_UPLOADED" | "DOCTOR_UPLOADED"; facilityId?: string;
 }) {
   const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-  if (!contractAddress || !ethers.isAddress(contractAddress)) throw new Error("Hệ thống xác minh chưa được cấu hình.");
+  if (!contractAddress || !ethers.isAddress(contractAddress)) {
+    throw new Error("Hệ thống xác minh chưa được cấu hình.");
+  }
   const { signer, address } = await connectWallet();
-  if (address.toLowerCase() !== input.uploaderWallet.toLowerCase()) throw new Error("Ví MetaMask không khớp ví đã xác minh.");
+  if (address.toLowerCase() !== input.uploaderWallet.toLowerCase()) {
+    throw new Error("Ví MetaMask không khớp ví đã xác minh.");
+  }
   const contract = new Contract(contractAddress, registryAbi, signer);
   const hash = input.contentHash.startsWith("0x") ? input.contentHash : `0x${input.contentHash}`;
   const sourceType = input.sourceType === "PATIENT_UPLOADED" ? 1 : 2;
@@ -188,14 +161,7 @@ export async function createOnChainRecordWithMetadata(input: {
     throw new Error(readableContractError(error));
   }
   if (!receipt) throw new Error("Không nhận được kết quả giao dịch.");
-  const parser = new Interface(registryAbi);
-  for (const log of receipt.logs) {
-    try {
-      const parsed = parser.parseLog(log);
-      if (parsed?.name === "RecordCreated") return { recordId: parsed.args.recordId.toString(), transactionHash: receipt.hash };
-    } catch { /* ignore unrelated logs */ }
-  }
-  throw new Error("Không thể xác nhận hồ sơ sau giao dịch.");
+  return readRecordCreatedEvent(receipt);
 }
 
 export async function createOnChainRecordVersion(
@@ -224,11 +190,17 @@ export async function createOnChainRecordVersion(
     throw new Error(readableContractError(error));
   }
   if (!receipt) throw new Error("Không nhận được kết quả giao dịch.");
+  return readRecordCreatedEvent(receipt);
+}
+
+function readRecordCreatedEvent(receipt: TransactionReceipt) {
   const parser = new Interface(registryAbi);
   for (const log of receipt.logs) {
     try {
       const parsed = parser.parseLog(log);
-      if (parsed?.name === "RecordCreated") return { recordId: parsed.args.recordId.toString(), transactionHash: receipt.hash };
+      if (parsed?.name === "RecordCreated") {
+        return { recordId: parsed.args.recordId.toString(), transactionHash: receipt.hash };
+      }
     } catch {
       // Ignore logs emitted by other contracts.
     }

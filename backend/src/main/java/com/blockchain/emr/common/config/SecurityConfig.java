@@ -60,7 +60,6 @@ public class SecurityConfig {
                         .requestMatchers("/medical-files/**").hasRole("PATIENT")
                         .requestMatchers("/patient/**").hasRole("PATIENT")
                         .requestMatchers("/doctor/**").hasRole("DOCTOR")
-                        .requestMatchers("/access-control/**").hasRole("PATIENT")
                         .requestMatchers("/medical-records/**").hasRole("DOCTOR")
                         .requestMatchers(HttpMethod.POST, "/blockchain/events/sync").hasRole("ADMIN")
                         .requestMatchers("/blockchain/**").authenticated()

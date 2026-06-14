@@ -66,8 +66,10 @@ public class TestUserSeeder implements ApplicationRunner {
         User patient = seedIdentityUser("079000000001", "Benh Nhan Test", RoleName.PATIENT);
         User doctor = seedIdentityUser("079000000002", "Bac Si Test", RoleName.DOCTOR);
         User admin = seedUser("admin@test.local", "Quan Tri Test", RoleName.ADMIN);
+        ensureRole(doctor, RoleName.PATIENT);
 
         patients.findByUserId(patient.getId()).orElseGet(() -> patients.save(new PatientProfile(patient)));
+        patients.findByUserId(doctor.getId()).orElseGet(() -> patients.save(new PatientProfile(doctor)));
         doctors.findByUserId(doctor.getId()).orElseGet(() -> {
             var facility = facilities.findByFacilityIdIgnoreCase("BV001")
                     .orElseThrow(() -> new IllegalStateException("Seed facility BV001 is missing"));
@@ -109,6 +111,17 @@ public class TestUserSeeder implements ApplicationRunner {
                     fullName,
                     role));
         });
+    }
+
+    private void ensureRole(User user, RoleName roleName) {
+        boolean present = user.getRoles().stream().anyMatch(role -> role.getName() == roleName);
+        if (present) {
+            return;
+        }
+        Role role = roles.findByName(roleName)
+                .orElseThrow(() -> new IllegalStateException("Required role is missing: " + roleName));
+        user.addRole(role);
+        users.save(user);
     }
 
     private void seedWallet(User user, String address) {

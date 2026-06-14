@@ -27,6 +27,8 @@ import com.blockchain.emr.auth.domain.*;
 import com.blockchain.emr.auth.infrastructure.*;
 import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
+import com.blockchain.emr.facility.domain.HealthcareFacility;
+import com.blockchain.emr.facility.infrastructure.HealthcareFacilityRepository;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 import com.blockchain.emr.medicalrecord.domain.MedicalRecordStatus;
 import com.blockchain.emr.medicalrecord.infrastructure.MedicalRecordRepository;
@@ -46,7 +48,8 @@ class MedicalRecordFlowTests {
     @Autowired PatientProfileRepository patients;
     @Autowired DoctorProfileRepository doctors;
     @Autowired WalletAddressRepository wallets;
-    @Autowired AccessGrantRepository grants;
+    @Autowired FacilityAccessGrantRepository grants;
+    @Autowired HealthcareFacilityRepository facilities;
     @Autowired MedicalRecordRepository records;
     @Autowired RecordAccessLogRepository logs;
     @MockitoBean BlockchainService blockchain;
@@ -54,7 +57,7 @@ class MedicalRecordFlowTests {
     @Test
     void doctorCompletesRecordFlowWithDualAuthorizationAndAudit() throws Exception {
         Setup setup = setup(true);
-        when(blockchain.hasAccess(setup.patientWallet(), setup.doctorWallet())).thenReturn(true);
+        when(blockchain.hasFacilityAccess(setup.patientWallet(), setup.facilityId())).thenReturn(true);
 
         MvcResult upload = mvc.perform(multipart("/medical-records/patients/{id}/files", setup.patientId())
                         .file(new MockMultipartFile("file", "diagnosis.json", MediaType.APPLICATION_JSON_VALUE,
@@ -105,15 +108,18 @@ class MedicalRecordFlowTests {
     @Test
     void deniesMissingApplicationGrantRevokedChainWrongRoleAndNoToken() throws Exception {
         Setup setup = setup(false);
-        when(blockchain.hasAccess(setup.patientWallet(), setup.doctorWallet())).thenReturn(true);
+        when(blockchain.hasFacilityAccess(setup.patientWallet(), setup.facilityId())).thenReturn(true);
         mvc.perform(get("/medical-records").header("Authorization", bearer(setup.doctorToken()))
                         .param("patientProfileId", String.valueOf(setup.patientId()))
                         .param("patientWallet", setup.patientWallet()).param("doctorWallet", setup.doctorWallet()))
                 .andExpect(status().isForbidden());
 
-        grants.save(new AccessGrant(patients.findById(setup.patientId()).orElseThrow(),
-                doctors.findByUserId(setup.doctorUserId()).orElseThrow()));
-        when(blockchain.hasAccess(setup.patientWallet(), setup.doctorWallet())).thenReturn(false);
+        grants.save(new FacilityAccessGrant(
+                patients.findById(setup.patientId()).orElseThrow(),
+                doctors.findByUserId(setup.doctorUserId()).orElseThrow().getHealthcareFacility(),
+                true,
+                randomTransactionHash()));
+        when(blockchain.hasFacilityAccess(setup.patientWallet(), setup.facilityId())).thenReturn(false);
         mvc.perform(get("/medical-records").header("Authorization", bearer(setup.doctorToken()))
                         .param("patientProfileId", String.valueOf(setup.patientId()))
                         .param("patientWallet", setup.patientWallet()).param("doctorWallet", setup.doctorWallet()))
@@ -126,7 +132,7 @@ class MedicalRecordFlowTests {
     @Test
     void rejectsRecordWhenOnChainContentHashDoesNotMatchUploadedFile() throws Exception {
         Setup setup = setup(true);
-        when(blockchain.hasAccess(setup.patientWallet(), setup.doctorWallet())).thenReturn(true);
+        when(blockchain.hasFacilityAccess(setup.patientWallet(), setup.facilityId())).thenReturn(true);
 
         MvcResult upload = mvc.perform(multipart("/medical-records/patients/{id}/files", setup.patientId())
                         .file(new MockMultipartFile("file", "diagnosis.json", MediaType.APPLICATION_JSON_VALUE,
@@ -151,7 +157,7 @@ class MedicalRecordFlowTests {
     @Test
     void doctorCreatesCorrectionAsNewVersionAndCannotCorrectSupersededRecordAgain() throws Exception {
         Setup setup = setup(true);
-        when(blockchain.hasAccess(setup.patientWallet(), setup.doctorWallet())).thenReturn(true);
+        when(blockchain.hasFacilityAccess(setup.patientWallet(), setup.facilityId())).thenReturn(true);
 
         MvcResult originalUpload = upload(setup, "diagnosis.json", "{\"diagnosis\":\"old\"}");
         long originalFileId = read(originalUpload).at("/data/fileId").asLong();
@@ -220,7 +226,7 @@ class MedicalRecordFlowTests {
     @Test
     void rejectsCorrectionWhenOnChainPreviousRecordDoesNotMatch() throws Exception {
         Setup setup = setup(true);
-        when(blockchain.hasAccess(setup.patientWallet(), setup.doctorWallet())).thenReturn(true);
+        when(blockchain.hasFacilityAccess(setup.patientWallet(), setup.facilityId())).thenReturn(true);
 
         MvcResult originalUpload = upload(setup, "diagnosis.json", "{\"diagnosis\":\"old\"}");
         long originalFileId = read(originalUpload).at("/data/fileId").asLong();
@@ -266,17 +272,20 @@ class MedicalRecordFlowTests {
         User patientUser = users.findByEmailIgnoreCase(patientEmail).orElseThrow();
         User doctorUser = users.findByEmailIgnoreCase(doctorEmail).orElseThrow();
         PatientProfile patient = patients.save(new PatientProfile(patientUser));
-        DoctorProfile doctor = new DoctorProfile(doctorUser, "LIC-" + UUID.randomUUID(), "General");
+        HealthcareFacility facility = facilities.findByFacilityIdIgnoreCase("BV001")
+                .orElseGet(() -> facilities.save(new HealthcareFacility(
+                        "BV001", "Benh vien test", "Dia chi test", "Co so y te test")));
+        DoctorProfile doctor = new DoctorProfile(doctorUser, "LIC-" + UUID.randomUUID(), null, null, null, facility);
         doctor.setVerified(true);
         doctors.save(doctor);
         String patientWallet = randomWallet();
         String doctorWallet = randomWallet();
         wallets.save(new WalletAddress(patientUser, patientWallet));
         wallets.save(new WalletAddress(doctorUser, doctorWallet));
-        if (grant) grants.save(new AccessGrant(patient, doctor));
+        if (grant) grants.save(new FacilityAccessGrant(patient, facility, true, randomTransactionHash()));
         BigInteger onChainRecordId = BigInteger.valueOf(System.nanoTime()).abs();
         return new Setup(patient.getId(), doctorUser.getId(), patientToken, doctorToken, patientWallet, doctorWallet,
-                onChainRecordId);
+                facility.getFacilityId(), onChainRecordId);
     }
 
     private String register(String email, String role) throws Exception {
@@ -296,6 +305,7 @@ class MedicalRecordFlowTests {
     }
     private String bearer(String token) { return "Bearer " + token; }
     private String randomWallet() { return "0x" + UUID.randomUUID().toString().replace("-", "") + "12345678"; }
+    private String randomTransactionHash() { return "0x" + UUID.randomUUID().toString().replace("-", "") + UUID.randomUUID().toString().replace("-", ""); }
     private record Setup(Long patientId, Long doctorUserId, String patientToken, String doctorToken,
-            String patientWallet, String doctorWallet, BigInteger onChainRecordId) {}
+            String patientWallet, String doctorWallet, String facilityId, BigInteger onChainRecordId) {}
 }

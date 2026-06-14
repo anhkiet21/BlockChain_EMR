@@ -29,7 +29,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 class BlockchainApiTests {
 
     private static final String WALLET_A = "0x1111111111111111111111111111111111111111";
-    private static final String WALLET_B = "0x2222222222222222222222222222222222222222";
     private static final String TX = "0x" + "a".repeat(64);
 
     @Autowired private MockMvc mockMvc;
@@ -38,16 +37,10 @@ class BlockchainApiTests {
 
     @Test
     void requiresAuthenticationAndRejectsUnlinkedWalletsBeforeRpcCall() throws Exception {
-        mockMvc.perform(get("/blockchain/access").param("patientWallet", WALLET_A).param("granteeWallet", WALLET_B))
-                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/blockchain/facility-access").param("patientWallet", WALLET_A).param("facilityId", "BV001"))
                 .andExpect(status().isUnauthorized());
 
         String token = registerPatient();
-        mockMvc.perform(get("/blockchain/access").header("Authorization", bearer(token))
-                        .param("patientWallet", WALLET_A).param("granteeWallet", WALLET_B))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
         mockMvc.perform(get("/blockchain/facility-access").header("Authorization", bearer(token))
                         .param("patientWallet", WALLET_A).param("facilityId", "BV001"))
                 .andExpect(status().isForbidden())

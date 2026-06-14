@@ -4,12 +4,6 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { publicApi, Session, setSession } from "@/lib/api/client";
 
-const DEMO_ACCOUNTS = [
-  { label: "Bệnh nhân", identifier: "079000000001", password: "password123" },
-  { label: "Bác sĩ", identifier: "079000000002", password: "password123" },
-  { label: "Quản trị viên", identifier: "admin@test.local", password: "password123" },
-] as const;
-
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -42,27 +36,6 @@ export default function LoginPage() {
         </p>
         <div className="mt-6 rounded-2xl bg-cyan-50 p-4 text-sm leading-6 text-cyan-950">
           Bệnh nhân và bác sĩ đăng nhập bằng CCCD hoặc mã định danh. Quản trị viên sử dụng email.
-        </div>
-        <div className="mt-6 grid gap-3">
-          <div>
-            <p className="label">Tài khoản dùng thử</p>
-            <p className="mt-1 text-xs text-slate-500">Chọn tài khoản để điền nhanh thông tin đăng nhập.</p>
-          </div>
-          {DEMO_ACCOUNTS.map((account) => (
-            <button
-              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:border-cyan-200 hover:bg-cyan-50"
-              type="button"
-              key={account.label}
-              onClick={() => {
-                setIdentifier(account.identifier);
-                setPassword(account.password);
-                setMessage("");
-              }}
-            >
-              <span>{account.label}</span>
-              <span className="font-mono text-xs text-slate-500">{account.identifier}</span>
-            </button>
-          ))}
         </div>
       </div>
 

@@ -23,19 +23,6 @@ class BlockchainQueryServiceTests {
     private final BlockchainQueryService service = new BlockchainQueryService(blockchain, wallets);
 
     @Test
-    void normalizesOwnedWalletBeforeReadingAccess() {
-        User user = mock(User.class);
-        WalletAddress linked = mock(WalletAddress.class);
-        when(user.getId()).thenReturn(7L);
-        when(linked.getUser()).thenReturn(user);
-        when(wallets.findByAddress("0xabc")).thenReturn(Optional.of(linked));
-        when(blockchain.hasAccess("0xabc", "0xdef")).thenReturn(true);
-
-        assertThat(service.hasAccess(7L, false, "0xABC", "0xDEF")).isTrue();
-        verify(blockchain).hasAccess("0xabc", "0xdef");
-    }
-
-    @Test
     void checksFacilityAccessUsingOwnedPatientWalletAndFacilityId() {
         User user = mock(User.class);
         WalletAddress linked = mock(WalletAddress.class);
@@ -51,16 +38,11 @@ class BlockchainQueryServiceTests {
     @Test
     void deniesUnownedWalletButAllowsAdminRead() {
         when(wallets.findByAddress("0xabc")).thenReturn(Optional.empty());
-        when(wallets.findByAddress("0xdef")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.hasAccess(7L, false, "0xABC", "0xDEF"))
-                .isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> service.hasFacilityAccess(7L, false, "0xABC", "BV001"))
                 .isInstanceOf(AccessDeniedException.class);
 
-        service.hasAccess(7L, true, "0xABC", "0xDEF");
         service.hasFacilityAccess(7L, true, "0xABC", "BV001");
-        verify(blockchain).hasAccess("0xabc", "0xdef");
         verify(blockchain).hasFacilityAccess("0xabc", "BV001");
     }
 }

@@ -340,16 +340,6 @@ export default function DoctorRecordsPage() {
                   <tr key={record.recordId}>
                     <td className="font-semibold">
                       {record.originalFileName}
-                      <p className="mt-1 text-xs font-medium text-slate-500">
-                        DB #{record.recordId} · On-chain #{record.onChainRecordId}
-                      </p>
-                      <button
-                        className="mt-1 break-all text-left font-mono text-xs text-cyan-700"
-                        title={record.blockchainTxHash}
-                        onClick={() => void navigator.clipboard.writeText(record.blockchainTxHash)}
-                      >
-                        Giao dịch: {record.blockchainTxHash.slice(0, 12)}...
-                      </button>
                     </td>
                     <td>
                       <span className={record.status === "ACTIVE" ? "badge" : "badge border-amber-200 bg-amber-50 text-amber-700"}>

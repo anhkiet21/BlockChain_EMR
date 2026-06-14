@@ -3,8 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AccessState } from "@/components/access-state";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
-import Link from "next/link";
-import { apiDownload, apiFetch, getSession } from "@/lib/api/client";
+import { apiDownload, apiFetch } from "@/lib/api/client";
 import { EmergencyAccessLog, Page, PendingRecordUpload, RecordAuditLog, RecordIntegrity, UnifiedMedicalRecord } from "@/lib/api/types";
 import { friendlyErrorMessage } from "@/lib/errors";
 import { createOnChainRecordWithMetadata } from "@/lib/web3/provider";
@@ -257,7 +256,6 @@ export default function PatientRecordsPage() {
             <div>
               <p className="badge">Định danh hồ sơ</p>
               <h2 className="mt-3 text-2xl font-black">{selectedRecord.originalFileName}</h2>
-              <p className="mt-2 muted">Các mã dưới đây được lấy trực tiếp từ API, không cần truy cập MySQL.</p>
             </div>
             <button className="btn-secondary" type="button" onClick={() => setSelectedRecord(null)}>Đóng</button>
           </div>
@@ -268,14 +266,6 @@ export default function PatientRecordsPage() {
             <RecordCode label="CID lưu trữ IPFS" value={selectedRecord.cid} onCopy={copyValue} />
             <RecordCode label="Mã toàn vẹn (contentHash)" value={selectedRecord.contentHash} onCopy={copyValue} />
           </div>
-          {getSession()?.user.wallets[0] && (
-            <Link
-              className="btn-primary w-fit"
-              href={`/blockchain?recordId=${encodeURIComponent(String(selectedRecord.onChainRecordId))}&callerWallet=${encodeURIComponent(getSession()!.user.wallets[0])}`}
-            >
-              Kiểm tra hồ sơ trên blockchain
-            </Link>
-          )}
         </section>
       )}
 
