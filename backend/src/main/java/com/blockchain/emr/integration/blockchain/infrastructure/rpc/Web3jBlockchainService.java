@@ -36,6 +36,7 @@ import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
 @Service
 public class Web3jBlockchainService implements BlockchainService {
 
+    private static final String READ_ONLY_CALLER = "0x0000000000000000000000000000000000000001";
     private final Web3j web3j;
     private final String contractAddress;
 
@@ -56,6 +57,12 @@ public class Web3jBlockchainService implements BlockchainService {
         validateAddress(patientWallet);
         return execute(() -> contract(patientWallet)
                 .facilityAccessGrants(patientWallet, facilityBytes(facilityId)).send());
+    }
+
+    @Override
+    public boolean isFacilityActive(String facilityId) {
+        return execute(() -> contract(READ_ONLY_CALLER)
+                .activeFacilities(facilityBytes(facilityId)).send());
     }
 
     @Override

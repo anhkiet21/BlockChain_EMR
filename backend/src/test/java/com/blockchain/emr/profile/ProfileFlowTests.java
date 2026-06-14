@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,10 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.blockchain.emr.auth.domain.WalletAddress;
+import com.blockchain.emr.auth.infrastructure.UserRepository;
+import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
+import com.blockchain.emr.auth.security.AuthenticatedUser;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -32,6 +37,12 @@ class ProfileFlowTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository users;
+
+    @Autowired
+    private WalletAddressRepository wallets;
 
     @Test
     void patientManagesOwnProfileAndDoctorCanSearchIt() throws Exception {
@@ -67,9 +78,10 @@ class ProfileFlowTests {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
 
-        String doctorToken = register(uniqueEmail("doctor"), "DOCTOR");
+        String doctorToken = registerDoctorWithFacility();
         MvcResult doctorProfileResult = createDoctorProfile(doctorToken);
         long doctorProfileId = read(doctorProfileResult).at("/data/id").asLong();
+        long doctorUserId = read(doctorProfileResult).at("/data/userId").asLong();
 
         mockMvc.perform(get("/patients")
                         .header("Authorization", bearer(doctorToken))
@@ -77,12 +89,12 @@ class ProfileFlowTests {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
 
-        mockMvc.perform(put("/doctors/{id}/verification", doctorProfileId)
-                        .with(user("admin").roles("ADMIN"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"verified": true}
-                                """))
+        wallets.save(new WalletAddress(
+                users.findById(doctorUserId).orElseThrow(),
+                "0x" + UUID.randomUUID().toString().replace("-", "") + "12345678"));
+
+        mockMvc.perform(post("/admin/doctors/{id}/verify", doctorProfileId)
+                        .with(user(adminPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.verified").value(true));
 
@@ -229,6 +241,26 @@ class ProfileFlowTests {
         return read(result).at("/data/accessToken").asText();
     }
 
+    private String registerDoctorWithFacility() throws Exception {
+        MvcResult result = mockMvc.perform(post("/auth/register/doctor")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "identityNumber":"%s",
+                                  "password":"password123",
+                                  "fullName":"Profile Test",
+                                  "dateOfBirth":"1985-03-20",
+                                  "gender":"MALE",
+                                  "phoneNumber":"+84901112223",
+                                  "licenseNumber":"LIC-%s",
+                                  "facilityId":"BV001"
+                                }
+                                """.formatted(UUID.randomUUID(), UUID.randomUUID())))
+                .andExpect(status().isOk())
+                .andReturn();
+        return read(result).at("/data/accessToken").asText();
+    }
+
     private MvcResult createDoctorProfile(String doctorToken) throws Exception {
         return mockMvc.perform(put("/doctors/me")
                         .header("Authorization", bearer(doctorToken))
@@ -259,5 +291,15 @@ class ProfileFlowTests {
 
     private String uniqueEmail(String prefix) {
         return prefix + "-" + UUID.randomUUID() + "@example.com";
+    }
+
+    private AuthenticatedUser adminPrincipal() {
+        return new AuthenticatedUser(
+                999999L,
+                "admin@test.local",
+                null,
+                "unused",
+                true,
+                Set.of("ADMIN"));
     }
 }

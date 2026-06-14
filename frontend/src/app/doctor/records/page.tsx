@@ -207,7 +207,7 @@ export default function DoctorRecordsPage() {
 
   if (access !== "allowed") return <AccessState access={access} />;
 
-  const ready = doctor?.verificationStatus === "VERIFIED" && !!doctor;
+  const ready = doctor?.verificationStatus === "VERIFIED" && !!doctor.wallets.length && !!doctor.facility;
 
   return (
     <section className="grid gap-6">
@@ -215,11 +215,16 @@ export default function DoctorRecordsPage() {
         <p className="badge">Không gian bác sĩ</p>
         <h1 className="mt-3 section-title">Hồ sơ bệnh nhân</h1>
         <p className="mt-2 text-slate-600">
-          {doctor?.verificationStatus === "VERIFIED" ? "Đã xác thực" : "Đang chờ xác thực"} · {doctor?.facility?.name ?? "Chưa có cơ sở"}
+          {doctorStatusLabel(doctor?.verificationStatus)} · {doctor?.facility?.name ?? "Chưa có cơ sở"}
         </p>
       </div>
 
-      {!ready && <p className="status">Tài khoản bác sĩ đang chờ quản trị viên xác thực hoặc chưa được gắn cơ sở y tế.</p>}
+      {!ready && (
+        <div className={doctor?.verificationStatus === "REJECTED" ? "status border-red-200 bg-red-50 text-red-900" : "status"}>
+          {doctorBlockingMessage(doctor)}
+          {doctor?.rejectionReason && <p className="mt-2"><b>Lý do:</b> {doctor.rejectionReason}</p>}
+        </div>
+      )}
       {message && <p className="status">{message}</p>}
 
       {ready && (
@@ -333,7 +338,19 @@ export default function DoctorRecordsPage() {
               <tbody>
                 {records.map((record) => (
                   <tr key={record.recordId}>
-                    <td className="font-semibold">{record.originalFileName}</td>
+                    <td className="font-semibold">
+                      {record.originalFileName}
+                      <p className="mt-1 text-xs font-medium text-slate-500">
+                        DB #{record.recordId} · On-chain #{record.onChainRecordId}
+                      </p>
+                      <button
+                        className="mt-1 break-all text-left font-mono text-xs text-cyan-700"
+                        title={record.blockchainTxHash}
+                        onClick={() => void navigator.clipboard.writeText(record.blockchainTxHash)}
+                      >
+                        Giao dịch: {record.blockchainTxHash.slice(0, 12)}...
+                      </button>
+                    </td>
                     <td>
                       <span className={record.status === "ACTIVE" ? "badge" : "badge border-amber-200 bg-amber-50 text-amber-700"}>
                         {record.status === "ACTIVE" ? "Hiện hành" : "Đã đính chính"}
@@ -405,4 +422,23 @@ export default function DoctorRecordsPage() {
       )}
     </section>
   );
+}
+
+function doctorStatusLabel(status?: DoctorProfile["verificationStatus"]) {
+  if (status === "VERIFIED") return "Đã xác thực";
+  if (status === "REJECTED") return "Đã bị từ chối";
+  return "Đang chờ xác thực";
+}
+
+function doctorBlockingMessage(doctor: DoctorProfile | null) {
+  if (!doctor) return "Không tải được hồ sơ bác sĩ.";
+  if (doctor.verificationStatus === "REJECTED") {
+    return "Hồ sơ bác sĩ đã bị từ chối. Hãy cập nhật hồ sơ và gửi xác thực lại tại trang Hồ sơ.";
+  }
+  if (doctor.verificationStatus === "PENDING_VERIFICATION") {
+    return "Tài khoản bác sĩ đang chờ quản trị viên xác thực.";
+  }
+  if (!doctor.wallets.length) return "Tài khoản bác sĩ chưa liên kết và xác minh ví.";
+  if (!doctor.facility) return "Tài khoản bác sĩ chưa được gắn cơ sở y tế.";
+  return "Tài khoản bác sĩ chưa sẵn sàng.";
 }

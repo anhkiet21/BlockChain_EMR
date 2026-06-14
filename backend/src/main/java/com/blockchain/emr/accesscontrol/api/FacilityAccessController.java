@@ -100,4 +100,12 @@ public class FacilityAccessController {
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(service.patientEmergencyAccessLogs(user.id(), page, size));
     }
+
+    @PostMapping("/patient/emergency-access/{id}/end")
+    ApiResponse<EmergencyAccessResponse> endEmergencyAccess(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id,
+            @Valid @RequestBody EndEmergencyAccessRequest request) {
+        return ApiResponse.success(service.endEmergencyAccess(user.id(), id, request.reason()));
+    }
 }

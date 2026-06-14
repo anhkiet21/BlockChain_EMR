@@ -50,6 +50,22 @@ export async function connectWallet() {
   return { provider, signer, address: await signer.getAddress() };
 }
 
+export async function getConnectedWallet() {
+  if (!window.ethereum) return null;
+  const accounts = await window.ethereum.request({ method: "eth_accounts" }) as string[];
+  return accounts[0] ?? null;
+}
+
+export function watchConnectedWallet(listener: (address: string | null) => void) {
+  if (!window.ethereum?.on) return () => undefined;
+  const handleAccountsChanged = (...args: unknown[]) => {
+    const accounts = Array.isArray(args[0]) ? args[0] as string[] : [];
+    listener(accounts[0] ?? null);
+  };
+  window.ethereum.on("accountsChanged", handleAccountsChanged);
+  return () => window.ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
+}
+
 export async function requireExpectedChain(provider: BrowserProvider) {
   const expected = BigInt(process.env.NEXT_PUBLIC_CHAIN_ID ?? "31337");
   const network = await provider.getNetwork();

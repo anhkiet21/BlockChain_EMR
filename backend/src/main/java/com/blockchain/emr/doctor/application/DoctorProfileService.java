@@ -20,6 +20,7 @@ import com.blockchain.emr.common.api.PageResponse;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
+import com.blockchain.emr.audit.SystemAuditService;
 
 @Service
 public class DoctorProfileService {
@@ -29,18 +30,21 @@ public class DoctorProfileService {
     private final DepartmentService departmentService;
     private final HealthcareFacilityService facilityService;
     private final WalletAddressRepository walletAddressRepository;
+    private final SystemAuditService auditService;
 
     public DoctorProfileService(
             DoctorProfileRepository doctorProfileRepository,
             UserRepository userRepository,
             DepartmentService departmentService,
             HealthcareFacilityService facilityService,
-            WalletAddressRepository walletAddressRepository) {
+            WalletAddressRepository walletAddressRepository,
+            SystemAuditService auditService) {
         this.doctorProfileRepository = doctorProfileRepository;
         this.userRepository = userRepository;
         this.departmentService = departmentService;
         this.facilityService = facilityService;
         this.walletAddressRepository = walletAddressRepository;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -87,15 +91,6 @@ public class DoctorProfileService {
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
     }
 
-    @Transactional
-    @PreAuthorize("hasRole('ADMIN')")
-    public DoctorProfileResponse setVerified(Long profileId, boolean verified) {
-        DoctorProfile profile = doctorProfileRepository.findById(profileId)
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
-        profile.setVerified(verified);
-        return toResponse(profile);
-    }
-
     @Transactional(readOnly = true)
     @PreAuthorize("hasRole('ADMIN')")
     public PageResponse<DoctorProfileResponse> listPending(int page, int size) {
@@ -108,8 +103,8 @@ public class DoctorProfileService {
     }
 
     @Transactional
-    @PreAuthorize("hasRole('ADMIN')")
-    public DoctorProfileResponse verify(Long profileId) {
+    @PreAuthorize("hasRole('ADMIN') and #adminUserId == authentication.principal.id")
+    public DoctorProfileResponse verify(Long adminUserId, Long profileId, String reason) {
         DoctorProfile profile = findProfile(profileId);
         if (walletAddressRepository.findFirstByUserIdOrderByIdAsc(profile.getUser().getId()).isEmpty()) {
             throw new ApplicationException(ErrorCode.CONFLICT, "Doctor must verify a wallet before approval");
@@ -117,15 +112,78 @@ public class DoctorProfileService {
         if (profile.getHealthcareFacility() == null || !profile.getHealthcareFacility().isActive()) {
             throw new ApplicationException(ErrorCode.INVALID_FACILITY);
         }
-        profile.verify();
+        DoctorVerificationStatus previous = profile.getVerificationStatus();
+        try {
+            profile.verify(adminUserId);
+        } catch (IllegalStateException exception) {
+            throw new ApplicationException(ErrorCode.CONFLICT, exception.getMessage());
+        }
+        auditService.record(
+                "DOCTOR_VERIFIED",
+                adminUserId,
+                actorName(adminUserId),
+                "ADMIN",
+                "DOCTOR_PROFILE",
+                profile.getId().toString(),
+                profile.getUser().getFullName(),
+                reason,
+                previous.name(),
+                profile.getVerificationStatus().name(),
+                null);
         return toResponse(profile);
     }
 
     @Transactional
-    @PreAuthorize("hasRole('ADMIN')")
-    public DoctorProfileResponse reject(Long profileId) {
+    @PreAuthorize("hasRole('ADMIN') and #adminUserId == authentication.principal.id")
+    public DoctorProfileResponse reject(Long adminUserId, Long profileId, String reason) {
         DoctorProfile profile = findProfile(profileId);
-        profile.reject();
+        String normalizedReason = reason == null || reason.isBlank()
+                ? "Hồ sơ chưa đáp ứng yêu cầu xác thực."
+                : reason.trim();
+        DoctorVerificationStatus previous = profile.getVerificationStatus();
+        try {
+            profile.reject(adminUserId, normalizedReason);
+        } catch (IllegalStateException exception) {
+            throw new ApplicationException(ErrorCode.CONFLICT, exception.getMessage());
+        }
+        auditService.record(
+                "DOCTOR_REJECTED",
+                adminUserId,
+                actorName(adminUserId),
+                "ADMIN",
+                "DOCTOR_PROFILE",
+                profile.getId().toString(),
+                profile.getUser().getFullName(),
+                normalizedReason,
+                previous.name(),
+                profile.getVerificationStatus().name(),
+                null);
+        return toResponse(profile);
+    }
+
+    @Transactional
+    @PreAuthorize("hasRole('DOCTOR') and #userId == authentication.principal.id")
+    public DoctorProfileResponse resubmit(Long userId) {
+        DoctorProfile profile = doctorProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
+        DoctorVerificationStatus previous = profile.getVerificationStatus();
+        try {
+            profile.resubmit();
+        } catch (IllegalStateException exception) {
+            throw new ApplicationException(ErrorCode.CONFLICT, exception.getMessage());
+        }
+        auditService.record(
+                "DOCTOR_RESUBMITTED",
+                userId,
+                profile.getUser().getFullName(),
+                "DOCTOR",
+                "DOCTOR_PROFILE",
+                profile.getId().toString(),
+                profile.getUser().getFullName(),
+                null,
+                previous.name(),
+                profile.getVerificationStatus().name(),
+                null);
         return toResponse(profile);
     }
 
@@ -145,6 +203,9 @@ public class DoctorProfileService {
                 profile.getBiography(),
                 profile.isVerified(),
                 profile.getVerificationStatus(),
+                profile.getRejectionReason(),
+                profile.getReviewedAt(),
+                profile.getReviewedByAdminUserId(),
                 profile.getDateOfBirth(),
                 profile.getGender(),
                 profile.getHealthcareFacility() == null
@@ -153,6 +214,12 @@ public class DoctorProfileService {
                 walletAddressRepository.findAllByUserId(user.getId()).stream()
                         .map(wallet -> wallet.getAddress()).toList(),
                 user.isEnabled() ? "ACTIVE" : "LOCKED");
+    }
+
+    private String actorName(Long userId) {
+        return userRepository.findById(userId)
+                .map(User::getFullName)
+                .orElse("Quản trị viên #" + userId);
     }
 
     private DoctorProfile findProfile(Long profileId) {

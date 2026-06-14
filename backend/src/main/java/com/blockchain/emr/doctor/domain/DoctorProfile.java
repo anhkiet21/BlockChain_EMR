@@ -72,6 +72,15 @@ public class DoctorProfile {
     @Column(name = "verification_status", nullable = false, length = 30)
     private DoctorVerificationStatus verificationStatus = DoctorVerificationStatus.PENDING_VERIFICATION;
 
+    @Column(name = "rejection_reason", length = 1000)
+    private String rejectionReason;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
+
+    @Column(name = "reviewed_by_admin_user_id")
+    private Long reviewedByAdminUserId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -121,16 +130,40 @@ public class DoctorProfile {
                 : DoctorVerificationStatus.REJECTED;
     }
 
-    public void verify() {
+    public void verify(Long adminUserId) {
+        requirePendingReview();
         verificationStatus = DoctorVerificationStatus.VERIFIED;
+        rejectionReason = null;
+        reviewedByAdminUserId = adminUserId;
+        reviewedAt = Instant.now();
     }
 
-    public void reject() {
+    public void reject(Long adminUserId, String reason) {
+        requirePendingReview();
         verificationStatus = DoctorVerificationStatus.REJECTED;
+        rejectionReason = reason;
+        reviewedByAdminUserId = adminUserId;
+        reviewedAt = Instant.now();
+    }
+
+    public void resubmit() {
+        if (verificationStatus != DoctorVerificationStatus.REJECTED) {
+            throw new IllegalStateException("Only a rejected doctor profile can be resubmitted");
+        }
+        verificationStatus = DoctorVerificationStatus.PENDING_VERIFICATION;
+        rejectionReason = null;
+        reviewedByAdminUserId = null;
+        reviewedAt = null;
     }
 
     public boolean isVerified() {
         return verificationStatus == DoctorVerificationStatus.VERIFIED;
+    }
+
+    private void requirePendingReview() {
+        if (verificationStatus != DoctorVerificationStatus.PENDING_VERIFICATION) {
+            throw new IllegalStateException("Doctor profile is not pending verification");
+        }
     }
 
     @PrePersist

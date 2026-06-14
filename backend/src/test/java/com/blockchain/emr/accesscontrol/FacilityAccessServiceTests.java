@@ -22,6 +22,8 @@ import com.blockchain.emr.accesscontrol.application.FacilityAccessService;
 import com.blockchain.emr.auth.domain.User;
 import com.blockchain.emr.auth.domain.WalletAddress;
 import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
+import com.blockchain.emr.auth.infrastructure.UserRepository;
+import com.blockchain.emr.audit.SystemAuditService;
 import com.blockchain.emr.common.exception.ApplicationException;
 import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.doctor.infrastructure.DoctorProfileRepository;
@@ -42,8 +44,11 @@ class FacilityAccessServiceTests {
     private final FacilityAccessAuditRepository audits = mock(FacilityAccessAuditRepository.class);
     private final EmergencyAccessGrantRepository emergencyAccess = mock(EmergencyAccessGrantRepository.class);
     private final BlockchainService blockchain = mock(BlockchainService.class);
+    private final UserRepository users = mock(UserRepository.class);
+    private final SystemAuditService systemAudit = mock(SystemAuditService.class);
     private final FacilityAccessService service = new FacilityAccessService(
-            patients, doctors, wallets, facilities, requests, grants, audits, emergencyAccess, blockchain);
+            patients, doctors, wallets, facilities, requests, grants, audits, emergencyAccess,
+            blockchain, users, systemAudit);
 
     private static final long PATIENT_USER_ID = 7L;
     private static final long DOCTOR_USER_ID = 9L;
@@ -167,6 +172,62 @@ class FacilityAccessServiceTests {
                 .hasMessageContaining("khẩn cấp");
 
         verify(emergencyAccess, never()).save(any());
+    }
+
+    @Test
+    void patientCanEndOwnedActiveEmergencyAccessImmediately() {
+        PatientProfile patient = mock(PatientProfile.class);
+        DoctorProfile doctor = mock(DoctorProfile.class);
+        User patientUser = mock(User.class);
+        User doctorUser = mock(User.class);
+        when(patient.getId()).thenReturn(21L);
+        when(patient.getPatientCode()).thenReturn("PAT-00000021");
+        when(patient.getUser()).thenReturn(patientUser);
+        when(patientUser.getId()).thenReturn(PATIENT_USER_ID);
+        when(patientUser.getFullName()).thenReturn("Patient Test");
+        when(doctor.getUser()).thenReturn(doctorUser);
+        when(doctorUser.getFullName()).thenReturn("Doctor Test");
+
+        EmergencyAccessGrant grant = new EmergencyAccessGrant(
+                patient, facility, doctor, "ER-2026-001", "Patient is unconscious",
+                Instant.now().plusSeconds(3600));
+        ReflectionTestUtils.setField(grant, "id", 81L);
+        ReflectionTestUtils.setField(grant, "createdAt", Instant.now().minusSeconds(60));
+        when(emergencyAccess.findByIdAndPatientProfileUserId(81L, PATIENT_USER_ID))
+                .thenReturn(Optional.of(grant));
+        when(users.findById(PATIENT_USER_ID)).thenReturn(Optional.of(patientUser));
+
+        var result = service.endEmergencyAccess(
+                PATIENT_USER_ID, 81L, "Patient requested closure");
+
+        assertThat(result.active()).isFalse();
+        assertThat(result.endedAt()).isNotNull();
+        assertThat(result.endedByName()).isEqualTo("Patient Test");
+        assertThat(result.endReason()).isEqualTo("Patient requested closure");
+        verify(systemAudit).record(
+                eq("EMERGENCY_ACCESS_ENDED"),
+                eq(PATIENT_USER_ID),
+                eq("Patient Test"),
+                eq("PATIENT"),
+                eq("EMERGENCY_ACCESS"),
+                eq("81"),
+                eq("ER-2026-001"),
+                eq("Patient requested closure"),
+                eq("ACTIVE"),
+                eq("ENDED"),
+                isNull());
+    }
+
+    @Test
+    void patientCannotEndAnotherPatientsEmergencyAccess() {
+        when(emergencyAccess.findByIdAndPatientProfileUserId(99L, PATIENT_USER_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.endEmergencyAccess(
+                PATIENT_USER_ID, 99L, "Not mine"))
+                .isInstanceOf(com.blockchain.emr.common.exception.ResourceNotFoundException.class);
+
+        verify(systemAudit, never()).record(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

@@ -10,6 +10,7 @@ export type DoctorProfile = {
   id: number; userId: number; doctorCode: string; email?: string; identityNumberMasked?: string; fullName: string; licenseNumber: string;
   specialization?: string; department?: Department; phone?: string; biography?: string; verified: boolean;
   verificationStatus: "PENDING_VERIFICATION" | "VERIFIED" | "REJECTED";
+  rejectionReason?: string; reviewedAt?: string; reviewedByAdminUserId?: number;
   dateOfBirth?: string; gender?: string; facility?: Facility; wallets: string[]; accountStatus: "ACTIVE" | "LOCKED";
 };
 
@@ -24,9 +25,20 @@ export type AdminFacility = {
   facilityId: string; name: string; address: string; active: boolean;
 };
 
+export type FacilityConsistency = {
+  facilityId: string; name: string; databaseActive: boolean; blockchainActive: boolean | null;
+  synchronizedState: boolean; status: "SYNCHRONIZED" | "MISMATCH" | "BLOCKCHAIN_UNAVAILABLE";
+};
+
 export type AdminAccessAudit = {
   id: number; action: "GRANT_ACCESS" | "REVOKE_ACCESS"; actorName: string; actorWallet: string;
   facilityId: string; facilityName: string; transactionHash: string; occurredAt: string;
+};
+
+export type SystemAuditEvent = {
+  id: number; action: string; actorUserId: number; actorName: string; actorRole: string;
+  targetType: string; targetId: string; targetName?: string; reason?: string;
+  previousState?: string; newState?: string; transactionHash?: string; occurredAt: string;
 };
 
 export type FacilityGrant = {
@@ -112,6 +124,9 @@ export type EmergencyAccessLog = {
   reason: string;
   createdAt: string;
   expiresAt: string;
+  endedAt?: string;
+  endedByName?: string;
+  endReason?: string;
   active: boolean;
 };
 

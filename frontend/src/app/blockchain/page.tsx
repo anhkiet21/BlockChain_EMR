@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { apiFetch, getSession } from "@/lib/api/client";
 import { FacilityAccessCheck, OnChainRecord, TransactionState } from "@/lib/api/types";
 
@@ -14,6 +14,13 @@ export default function BlockchainPage() {
   const [result, setResult] = useState<{ label: string; value: string }[]>([]);
 
   const isAdmin = getSession()?.user.roles.includes("ADMIN");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setRecordId(params.get("recordId") ?? "");
+    setCallerWallet(params.get("callerWallet") ?? "");
+    setTransactionHash(params.get("transactionHash") ?? "");
+  }, []);
 
   async function checkFacilityAccess(event: FormEvent) {
     event.preventDefault();

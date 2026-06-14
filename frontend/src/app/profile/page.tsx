@@ -86,6 +86,16 @@ export default function ProfilePage() {
     }
   }
 
+  async function resubmitDoctor() {
+    try {
+      const saved = await apiFetch<DoctorProfile>("/doctors/me/resubmit", { method: "POST" });
+      setDoctor(saved);
+      setMessage({ text: "Đã gửi lại hồ sơ để quản trị viên xác thực.", kind: "info" });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : "Không thể gửi lại hồ sơ", kind: "error" });
+    }
+  }
+
   if (!user) {
     return <p className="status">Cần đăng nhập để xem hồ sơ.</p>;
   }
@@ -129,6 +139,15 @@ export default function ProfilePage() {
             <p className={doctor.verified ? "text-sm font-semibold text-green-700" : "text-sm font-semibold text-amber-700"}>
               Trạng thái: {doctorVerificationLabel(doctor.verificationStatus)} · Cơ sở: {doctor.facility?.name ?? "Chưa gắn"}
             </p>
+            {doctor.verificationStatus === "REJECTED" && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                <p><b>Lý do từ chối:</b> {doctor.rejectionReason ?? "Chưa có lý do."}</p>
+                {doctor.reviewedAt && <p className="mt-1">Thời gian xử lý: {new Date(doctor.reviewedAt).toLocaleString("vi-VN")}</p>}
+                <button className="btn-secondary mt-3" type="button" onClick={resubmitDoctor}>
+                  Gửi xác thực lại
+                </button>
+              </div>
+            )}
             <button className="btn-primary">Lưu hồ sơ bác sĩ</button>
           </form>
         )}

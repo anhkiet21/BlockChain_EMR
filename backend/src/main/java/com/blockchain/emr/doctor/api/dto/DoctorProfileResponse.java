@@ -1,5 +1,6 @@
 package com.blockchain.emr.doctor.api.dto;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -21,6 +22,9 @@ public record DoctorProfileResponse(
         String biography,
         boolean verified,
         DoctorVerificationStatus verificationStatus,
+        String rejectionReason,
+        Instant reviewedAt,
+        Long reviewedByAdminUserId,
         LocalDate dateOfBirth,
         Gender gender,
         HealthcareFacilityResponse facility,

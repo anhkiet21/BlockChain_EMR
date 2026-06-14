@@ -25,6 +25,8 @@ import com.blockchain.emr.accesscontrol.FacilityAccessRequestRepository;
 import com.blockchain.emr.accesscontrol.FacilityAccessRequestStatus;
 import com.blockchain.emr.auth.domain.WalletAddress;
 import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
+import com.blockchain.emr.auth.infrastructure.UserRepository;
+import com.blockchain.emr.audit.SystemAuditService;
 import com.blockchain.emr.common.api.PageResponse;
 import com.blockchain.emr.common.exception.ApplicationException;
 import com.blockchain.emr.common.exception.ErrorCode;
@@ -47,6 +49,8 @@ public class FacilityAccessService {
     private final FacilityAccessAuditRepository audits;
     private final EmergencyAccessGrantRepository emergencyAccess;
     private final BlockchainService blockchain;
+    private final UserRepository users;
+    private final SystemAuditService systemAudit;
 
     public FacilityAccessService(
             PatientProfileRepository patients,
@@ -57,7 +61,9 @@ public class FacilityAccessService {
             FacilityAccessGrantRepository grants,
             FacilityAccessAuditRepository audits,
             EmergencyAccessGrantRepository emergencyAccess,
-            BlockchainService blockchain) {
+            BlockchainService blockchain,
+            UserRepository users,
+            SystemAuditService systemAudit) {
         this.patients = patients;
         this.doctors = doctors;
         this.wallets = wallets;
@@ -67,6 +73,8 @@ public class FacilityAccessService {
         this.audits = audits;
         this.emergencyAccess = emergencyAccess;
         this.blockchain = blockchain;
+        this.users = users;
+        this.systemAudit = systemAudit;
     }
 
     @Transactional
@@ -299,6 +307,41 @@ public class FacilityAccessService {
                 .map(grant -> emergencyResponse(grant, now)));
     }
 
+    @Transactional
+    @PreAuthorize("hasRole('PATIENT') and #patientUserId == authentication.principal.id")
+    public EmergencyAccessResponse endEmergencyAccess(
+            Long patientUserId,
+            Long emergencyAccessId,
+            String reason) {
+        EmergencyAccessGrant grant = emergencyAccess
+                .findByIdAndPatientProfileUserId(emergencyAccessId, patientUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Emergency access not found"));
+        var actor = users.findById(patientUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        String normalizedReason = reason == null || reason.isBlank()
+                ? "Bệnh nhân chủ động kết thúc quyền truy cập khẩn cấp."
+                : reason.trim();
+        Instant now = Instant.now();
+        try {
+            grant.end(actor, normalizedReason, now);
+        } catch (IllegalStateException exception) {
+            throw new ApplicationException(ErrorCode.CONFLICT, exception.getMessage());
+        }
+        systemAudit.record(
+                "EMERGENCY_ACCESS_ENDED",
+                patientUserId,
+                actor.getFullName(),
+                "PATIENT",
+                "EMERGENCY_ACCESS",
+                grant.getId().toString(),
+                grant.getCaseCode(),
+                normalizedReason,
+                "ACTIVE",
+                "ENDED",
+                null);
+        return emergencyResponse(grant, now);
+    }
+
     private DoctorProfile requireEligibleDoctor(Long userId) {
         DoctorProfile doctor = doctors.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
@@ -420,6 +463,9 @@ public class FacilityAccessService {
                 grant.getReason(),
                 grant.getCreatedAt(),
                 grant.getExpiresAt(),
+                grant.getEndedAt(),
+                grant.getEndedBy() == null ? null : grant.getEndedBy().getFullName(),
+                grant.getEndReason(),
                 grant.isActive(now));
     }
 }

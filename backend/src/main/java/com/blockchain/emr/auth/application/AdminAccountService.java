@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.blockchain.emr.auth.api.dto.AccountStatusResponse;
 import com.blockchain.emr.auth.domain.User;
 import com.blockchain.emr.auth.infrastructure.UserRepository;
+import com.blockchain.emr.audit.SystemAuditService;
 import com.blockchain.emr.common.exception.ApplicationException;
 import com.blockchain.emr.common.exception.ErrorCode;
 import com.blockchain.emr.common.exception.ResourceNotFoundException;
@@ -15,9 +16,11 @@ import com.blockchain.emr.common.exception.ResourceNotFoundException;
 public class AdminAccountService {
 
     private final UserRepository userRepository;
+    private final SystemAuditService auditService;
 
-    public AdminAccountService(UserRepository userRepository) {
+    public AdminAccountService(UserRepository userRepository, SystemAuditService auditService) {
         this.userRepository = userRepository;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -28,12 +31,27 @@ public class AdminAccountService {
         }
         User user = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        String previous = user.isEnabled() ? "ACTIVE" : "LOCKED";
         if (locked) {
             user.lock();
         } else {
             user.unlock();
         }
-        return new AccountStatusResponse(user.getId(), user.isEnabled() ? "ACTIVE" : "LOCKED");
+        String current = user.isEnabled() ? "ACTIVE" : "LOCKED";
+        auditService.record(
+                locked ? "USER_LOCKED" : "USER_UNLOCKED",
+                adminUserId,
+                userRepository.findById(adminUserId).map(User::getFullName)
+                        .orElse("Quản trị viên #" + adminUserId),
+                "ADMIN",
+                "USER",
+                user.getId().toString(),
+                user.getFullName(),
+                null,
+                previous,
+                current,
+                null);
+        return new AccountStatusResponse(user.getId(), current);
     }
 }
 

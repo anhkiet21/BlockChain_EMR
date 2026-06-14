@@ -3,7 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { AccessState } from "@/components/access-state";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
-import { apiDownload, apiFetch } from "@/lib/api/client";
+import Link from "next/link";
+import { apiDownload, apiFetch, getSession } from "@/lib/api/client";
 import { EmergencyAccessLog, Page, PendingRecordUpload, RecordAuditLog, RecordIntegrity, UnifiedMedicalRecord } from "@/lib/api/types";
 import { friendlyErrorMessage } from "@/lib/errors";
 import { createOnChainRecordWithMetadata } from "@/lib/web3/provider";
@@ -31,7 +32,9 @@ export default function PatientRecordsPage() {
   const [historyLogs, setHistoryLogs] = useState<RecordAuditLog[]>([]);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [integrity, setIntegrity] = useState<RecordIntegrity | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<UnifiedMedicalRecord | null>(null);
   const [emergencyLogs, setEmergencyLogs] = useState<EmergencyAccessLog[]>([]);
+  const [endingEmergencyId, setEndingEmergencyId] = useState<number | null>(null);
 
   useEffect(() => {
     if (access === "allowed") load();
@@ -114,6 +117,33 @@ export default function PatientRecordsPage() {
     }
   }
 
+  async function endEmergencyAccess(log: EmergencyAccessLog) {
+    const reason = window.prompt(
+      "Lý do kết thúc quyền truy cập khẩn cấp:",
+      "Tôi không còn đồng ý cho phép truy cập khẩn cấp.",
+    );
+    if (reason === null) return;
+    setEndingEmergencyId(log.id);
+    setMessage("");
+    try {
+      await apiFetch(`/patient/emergency-access/${log.id}/end`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      setMessage("Đã kết thúc quyền truy cập khẩn cấp. Các lần đọc tiếp theo sẽ bị chặn.");
+      await load();
+    } catch (error) {
+      setMessage(friendlyErrorMessage(error, "Không thể kết thúc quyền truy cập khẩn cấp"));
+    } finally {
+      setEndingEmergencyId(null);
+    }
+  }
+
+  async function copyValue(label: string, value: string) {
+    await navigator.clipboard.writeText(value);
+    setMessage(`Đã sao chép ${label}.`);
+  }
+
   if (access !== "allowed") return <AccessState access={access} />;
 
   return (
@@ -155,14 +185,26 @@ export default function PatientRecordsPage() {
                   <p className="mt-1 text-sm text-slate-600">Bác sĩ {log.doctorName} · ca {log.caseCode}</p>
                 </div>
                 <span className={log.active ? "badge border-red-200 bg-red-50 text-red-800" : "badge"}>
-                  {log.active ? "Còn hiệu lực" : "Đã hết hạn"}
+                  {log.active ? "Còn hiệu lực" : log.endedAt ? "Đã kết thúc" : "Đã hết hạn"}
                 </span>
               </div>
               <p className="mt-3 text-sm text-slate-700"><b>Lý do:</b> {log.reason}</p>
               <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-500 md:grid-cols-2">
                 <p>Bắt đầu: {new Date(log.createdAt).toLocaleString("vi-VN")}</p>
                 <p>Hết hạn: {new Date(log.expiresAt).toLocaleString("vi-VN")}</p>
+                {log.endedAt && <p>Kết thúc lúc: {new Date(log.endedAt).toLocaleString("vi-VN")}</p>}
+                {log.endReason && <p>Lý do kết thúc: {log.endReason}</p>}
               </div>
+              {log.active && (
+                <button
+                  className="btn-danger mt-4"
+                  type="button"
+                  disabled={endingEmergencyId === log.id}
+                  onClick={() => endEmergencyAccess(log)}
+                >
+                  {endingEmergencyId === log.id ? "Đang kết thúc..." : "Kết thúc quyền khẩn cấp"}
+                </button>
+              )}
             </article>
           ))}
         </div>
@@ -197,6 +239,7 @@ export default function PatientRecordsPage() {
                 <td>
                   <div className="flex flex-wrap gap-2">
                     <button className="btn-secondary" onClick={() => loadHistory(record)}>Xem lịch sử</button>
+                    <button className="btn-secondary" onClick={() => setSelectedRecord(record)}>Xem mã hồ sơ</button>
                     <button className="btn-secondary" onClick={() => checkIntegrity(record)}>Kiểm tra toàn vẹn</button>
                     <button className="btn-secondary" onClick={() => download(record)}>Tải xuống</button>
                   </div>
@@ -207,6 +250,34 @@ export default function PatientRecordsPage() {
           </tbody>
         </table>
       </div>
+
+      {selectedRecord && (
+        <section className="card grid gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="badge">Định danh hồ sơ</p>
+              <h2 className="mt-3 text-2xl font-black">{selectedRecord.originalFileName}</h2>
+              <p className="mt-2 muted">Các mã dưới đây được lấy trực tiếp từ API, không cần truy cập MySQL.</p>
+            </div>
+            <button className="btn-secondary" type="button" onClick={() => setSelectedRecord(null)}>Đóng</button>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <RecordCode label="Mã hồ sơ hệ thống (recordId)" value={String(selectedRecord.recordId)} onCopy={copyValue} />
+            <RecordCode label="Mã hồ sơ blockchain (onChainRecordId)" value={String(selectedRecord.onChainRecordId)} onCopy={copyValue} />
+            <RecordCode label="Mã giao dịch (transactionHash)" value={selectedRecord.blockchainTxHash} onCopy={copyValue} />
+            <RecordCode label="CID lưu trữ IPFS" value={selectedRecord.cid} onCopy={copyValue} />
+            <RecordCode label="Mã toàn vẹn (contentHash)" value={selectedRecord.contentHash} onCopy={copyValue} />
+          </div>
+          {getSession()?.user.wallets[0] && (
+            <Link
+              className="btn-primary w-fit"
+              href={`/blockchain?recordId=${encodeURIComponent(String(selectedRecord.onChainRecordId))}&callerWallet=${encodeURIComponent(getSession()!.user.wallets[0])}`}
+            >
+              Kiểm tra hồ sơ trên blockchain
+            </Link>
+          )}
+        </section>
+      )}
 
       {integrity && (
         <section className={integrity.valid ? "card border-emerald-100 bg-emerald-50/50" : "card border-red-100 bg-red-50/70"}>
@@ -329,6 +400,16 @@ function HashBox({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
       <p className="font-bold text-slate-700">{label}</p>
       <p className="mt-2 break-all font-mono text-slate-600">{value}</p>
+    </div>
+  );
+}
+
+function RecordCode({ label, value, onCopy }: { label: string; value: string; onCopy: (label: string, value: string) => Promise<void> }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 break-all font-mono text-sm text-slate-900">{value}</p>
+      <button className="btn-secondary mt-3" type="button" onClick={() => void onCopy(label, value)}>Sao chép</button>
     </div>
   );
 }

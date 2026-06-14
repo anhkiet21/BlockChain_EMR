@@ -12,14 +12,21 @@ import com.blockchain.emr.facility.api.dto.HealthcareFacilityResponse;
 import com.blockchain.emr.facility.api.dto.AdminHealthcareFacilityResponse;
 import com.blockchain.emr.facility.domain.HealthcareFacility;
 import com.blockchain.emr.facility.infrastructure.HealthcareFacilityRepository;
+import com.blockchain.emr.facility.api.dto.FacilityConsistencyResponse;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
+import com.blockchain.emr.integration.blockchain.domain.BlockchainException;
 
 @Service
 public class HealthcareFacilityService {
 
     private final HealthcareFacilityRepository facilityRepository;
+    private final BlockchainService blockchain;
 
-    public HealthcareFacilityService(HealthcareFacilityRepository facilityRepository) {
+    public HealthcareFacilityService(
+            HealthcareFacilityRepository facilityRepository,
+            BlockchainService blockchain) {
         this.facilityRepository = facilityRepository;
+        this.blockchain = blockchain;
     }
 
     @Transactional(readOnly = true)
@@ -35,6 +42,30 @@ public class HealthcareFacilityService {
         return facilityRepository.findAllByOrderByNameAsc().stream()
                 .map(facility -> new AdminHealthcareFacilityResponse(
                         facility.getFacilityId(), facility.getName(), facility.getAddress(), facility.isActive()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<FacilityConsistencyResponse> consistency() {
+        return facilityRepository.findAllByOrderByNameAsc().stream()
+                .map(facility -> {
+                    Boolean blockchainActive = null;
+                    String status;
+                    try {
+                        blockchainActive = blockchain.isFacilityActive(facility.getFacilityId());
+                        status = blockchainActive == facility.isActive() ? "SYNCHRONIZED" : "MISMATCH";
+                    } catch (BlockchainException exception) {
+                        status = "BLOCKCHAIN_UNAVAILABLE";
+                    }
+                    return new FacilityConsistencyResponse(
+                            facility.getFacilityId(),
+                            facility.getName(),
+                            facility.isActive(),
+                            blockchainActive,
+                            blockchainActive != null && blockchainActive == facility.isActive(),
+                            status);
+                })
                 .toList();
     }
 

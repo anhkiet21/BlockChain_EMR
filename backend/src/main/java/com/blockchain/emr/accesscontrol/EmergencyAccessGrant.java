@@ -5,6 +5,7 @@ import java.time.Instant;
 import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.facility.domain.HealthcareFacility;
 import com.blockchain.emr.patient.domain.PatientProfile;
+import com.blockchain.emr.auth.domain.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -52,6 +53,13 @@ public class EmergencyAccessGrant {
     @Column(name = "ended_at")
     private Instant endedAt;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "ended_by_user_id")
+    private User endedBy;
+
+    @Column(name = "end_reason", length = 500)
+    private String endReason;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -72,6 +80,15 @@ public class EmergencyAccessGrant {
 
     public boolean isActive(Instant now) {
         return endedAt == null && expiresAt.isAfter(now);
+    }
+
+    public void end(User actor, String reason, Instant now) {
+        if (!isActive(now)) {
+            throw new IllegalStateException("Emergency access is no longer active");
+        }
+        endedAt = now;
+        endedBy = actor;
+        endReason = reason;
     }
 
     @PrePersist

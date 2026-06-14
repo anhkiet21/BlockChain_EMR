@@ -65,6 +65,8 @@ public final class FacilityAccessModels {
             @NotBlank @Size(max = 1000) String reason,
             Integer durationMinutes) {}
 
+    public record EndEmergencyAccessRequest(@Size(max = 500) String reason) {}
+
     public record EmergencyAccessResponse(
             Long id,
             Long patientProfileId,
@@ -77,6 +79,26 @@ public final class FacilityAccessModels {
             String reason,
             Instant createdAt,
             Instant expiresAt,
-            boolean active) {}
+            Instant endedAt,
+            String endedByName,
+            String endReason,
+            boolean active) {
+        public EmergencyAccessResponse(
+                Long id,
+                Long patientProfileId,
+                String patientCode,
+                String patientName,
+                String facilityId,
+                String facilityName,
+                String doctorName,
+                String caseCode,
+                String reason,
+                Instant createdAt,
+                Instant expiresAt,
+                boolean active) {
+            this(id, patientProfileId, patientCode, patientName, facilityId, facilityName,
+                    doctorName, caseCode, reason, createdAt, expiresAt, null, null, null, active);
+        }
+    }
 }
 

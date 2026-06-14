@@ -8,6 +8,7 @@ public interface BlockchainService {
 
     boolean hasAccess(String patientWallet, String granteeWallet);
     boolean hasFacilityAccess(String patientWallet, String facilityId);
+    boolean isFacilityActive(String facilityId);
     PreparedTransaction prepareAccessTransaction(String patientWallet, String granteeWallet, boolean granted);
     PreparedTransaction prepareFacilityAccessTransaction(String patientWallet, String facilityId, boolean granted);
     PreparedTransaction prepareRecordTransaction(

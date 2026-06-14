@@ -42,7 +42,7 @@ class MySqlTestcontainersTests {
                 where table_schema = database() and table_name = 'access_grant_history' and column_name = 'id'
                 """, String.class);
 
-        assertThat(migrations).isEqualTo(16);
+        assertThat(migrations).isEqualTo(17);
         assertThat(extra).containsIgnoringCase("auto_increment");
     }
 }

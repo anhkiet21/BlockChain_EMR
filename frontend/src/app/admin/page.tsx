@@ -8,7 +8,9 @@ import {
   AdminFacility,
   AdminPatient,
   DoctorProfile,
+  FacilityConsistency,
   Page,
+  SystemAuditEvent,
   UnifiedMedicalRecord,
 } from "@/lib/api/types";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
@@ -54,8 +56,10 @@ export default function AdminPage() {
   const [doctors, setDoctors] = useState<DoctorProfile[]>([]);
   const [patients, setPatients] = useState<AdminPatient[]>([]);
   const [facilities, setFacilities] = useState<AdminFacility[]>([]);
+  const [facilityConsistency, setFacilityConsistency] = useState<FacilityConsistency[]>([]);
   const [accessAudit, setAccessAudit] = useState<AdminAccessAudit[]>([]);
   const [recordAudit, setRecordAudit] = useState<UnifiedMedicalRecord[]>([]);
+  const [systemAudit, setSystemAudit] = useState<SystemAuditEvent[]>([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -65,18 +69,22 @@ export default function AdminPage() {
     setLoading(true);
     setMessage(null);
     try {
-      const [doctorPage, patientPage, facilityList, accessPage, recordPage] = await Promise.all([
+      const [doctorPage, patientPage, facilityList, consistencyList, accessPage, recordPage, systemPage] = await Promise.all([
         apiFetch<Page<DoctorProfile>>("/admin/doctors/pending?size=100"),
         apiFetch<Page<AdminPatient>>("/admin/patients?size=100"),
         apiFetch<AdminFacility[]>("/admin/facilities"),
+        apiFetch<FacilityConsistency[]>("/admin/facilities/consistency"),
         apiFetch<Page<AdminAccessAudit>>("/admin/audit/access?size=100"),
         apiFetch<Page<UnifiedMedicalRecord>>("/admin/audit/records?size=100"),
+        apiFetch<Page<SystemAuditEvent>>("/admin/audit/system?size=100"),
       ]);
       setDoctors(doctorPage.content);
       setPatients(patientPage.content);
       setFacilities(facilityList);
+      setFacilityConsistency(consistencyList);
       setAccessAudit(accessPage.content);
       setRecordAudit(recordPage.content);
+      setSystemAudit(systemPage.content);
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Không thể tải dữ liệu quản trị." });
     } finally {
@@ -93,7 +101,16 @@ export default function AdminPage() {
       const path = action === "verify" || action === "reject"
         ? `/admin/doctors/${doctor.id}/${action}`
         : `/admin/users/${doctor.userId}/${action}`;
-      await apiFetch(path, { method: "POST" });
+      const reason = action === "reject"
+        ? window.prompt("Nhập lý do từ chối hồ sơ bác sĩ:", "Hồ sơ chưa đáp ứng yêu cầu xác thực.")
+        : null;
+      if (action === "reject" && reason === null) return;
+      await apiFetch(path, {
+        method: "POST",
+        body: action === "verify" || action === "reject"
+          ? JSON.stringify({ reason: reason || undefined })
+          : undefined,
+      });
       setMessage({ type: "ok", text: action === "verify" ? "Đã xác thực bác sĩ." : action === "reject" ? "Đã từ chối hồ sơ bác sĩ." : action === "lock" ? "Đã khóa tài khoản." : "Đã mở khóa tài khoản." });
       await load();
     } catch (error) {
@@ -120,10 +137,11 @@ export default function AdminPage() {
   const filteredPatients = patients.filter((p) => [p.fullName, p.patientCode, p.identityNumberMasked, p.phone].some((v) => v?.toLocaleLowerCase("vi").includes(normalized)));
   const filteredFacilities = facilities.filter((f) => [f.facilityId, f.name, f.address].some((v) => v.toLocaleLowerCase("vi").includes(normalized)));
   const auditRows = useMemo(() => [
-    ...accessAudit.map((item) => ({ id: `access-${item.id}`, action: item.action, actor: item.actorName, detail: `${item.facilityId} · ${item.facilityName}`, cid: "-", hash: "-", txHash: item.transactionHash, time: item.occurredAt })),
-    ...recordAudit.map((item) => ({ id: `record-${item.recordId}`, action: "UPLOAD_RECORD", actor: item.uploaderName, detail: item.originalFileName, cid: item.cid, hash: item.contentHash, txHash: item.blockchainTxHash, time: item.createdAt })),
-  ].sort((a, b) => +new Date(b.time) - +new Date(a.time)), [accessAudit, recordAudit]);
-  const filteredAudit = auditRows.filter((row) => [row.action, row.actor, row.detail, row.cid, row.hash, row.txHash].some((v) => v?.toLocaleLowerCase("vi").includes(normalized)));
+    ...accessAudit.map((item) => ({ id: `access-${item.id}`, action: item.action, actor: item.actorName, detail: `${item.facilityId} · ${item.facilityName}`, cid: "-", hash: "-", txHash: item.transactionHash, reason: "", state: "", time: item.occurredAt })),
+    ...recordAudit.map((item) => ({ id: `record-${item.recordId}`, action: "UPLOAD_RECORD", actor: item.uploaderName, detail: `${item.originalFileName} · DB #${item.recordId} · On-chain #${item.onChainRecordId}`, cid: item.cid, hash: item.contentHash, txHash: item.blockchainTxHash, reason: "", state: item.status, time: item.createdAt })),
+    ...systemAudit.map((item) => ({ id: `system-${item.id}`, action: item.action, actor: item.actorName, detail: `${item.targetName ?? item.targetType} · ${item.targetType} #${item.targetId}`, cid: "-", hash: "-", txHash: item.transactionHash ?? "", reason: item.reason ?? "", state: [item.previousState, item.newState].filter(Boolean).join(" → "), time: item.occurredAt })),
+  ].sort((a, b) => +new Date(b.time) - +new Date(a.time)), [accessAudit, recordAudit, systemAudit]);
+  const filteredAudit = auditRows.filter((row) => [row.action, row.actor, row.detail, row.cid, row.hash, row.txHash, row.reason, row.state].some((v) => v?.toLocaleLowerCase("vi").includes(normalized)));
 
   if (access !== "allowed") return <AccessState access={access} />;
 
@@ -174,7 +192,7 @@ export default function AdminPage() {
           {loading ? <div className="admin-empty">Đang tải dữ liệu quản trị…</div> : <>
             {tab === "doctors" && <DoctorsTable doctors={filteredDoctors} busyId={busyId} onAction={doctorAction} />}
             {tab === "patients" && <PatientsTable patients={filteredPatients} busyId={busyId} onToggle={togglePatient} />}
-            {tab === "facilities" && <FacilitiesTable facilities={filteredFacilities} />}
+            {tab === "facilities" && <FacilitiesTable facilities={filteredFacilities} consistency={facilityConsistency} />}
             {tab === "audit" && <AuditTable rows={filteredAudit} />}
           </>}
         </main>
@@ -197,18 +215,32 @@ function PatientsTable({ patients, busyId, onToggle }: { patients: AdminPatient[
   </tbody></table></div>;
 }
 
-function FacilitiesTable({ facilities }: { facilities: AdminFacility[] }) {
-  return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Mã cơ sở</th><th>Tên cơ sở y tế</th><th>Địa chỉ</th><th>Trạng thái</th></tr></thead><tbody>
-    {facilities.map((facility) => <tr key={facility.facilityId}><td><code className="admin-code-purple">{facility.facilityId}</code></td><td><div className="admin-person admin-person-purple"><span><Icon name="facility" /></span><div><b>{facility.name}</b><small>Cơ sở y tế</small></div></div></td><td className="admin-address">{facility.address}</td><td><StatusPill active={facility.active} activeText="Đang hoạt động" inactiveText="Ngừng hoạt động" /></td></tr>)}
-    {!facilities.length && <EmptyRow columns={4} text="Không tìm thấy cơ sở y tế." />}
+function FacilitiesTable({ facilities, consistency }: { facilities: AdminFacility[]; consistency: FacilityConsistency[] }) {
+  const consistencyById = new Map(consistency.map((item) => [item.facilityId, item]));
+  return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Mã cơ sở</th><th>Tên cơ sở y tế</th><th>Địa chỉ</th><th>Database</th><th>Blockchain</th><th>Đồng bộ</th></tr></thead><tbody>
+    {facilities.map((facility) => {
+      const check = consistencyById.get(facility.facilityId);
+      return <tr key={facility.facilityId}><td><code className="admin-code-purple">{facility.facilityId}</code></td><td><div className="admin-person admin-person-purple"><span><Icon name="facility" /></span><div><b>{facility.name}</b><small>Cơ sở y tế</small></div></div></td><td className="admin-address">{facility.address}</td><td><StatusPill active={facility.active} activeText="Đang hoạt động" inactiveText="Ngừng hoạt động" /></td><td>{check?.blockchainActive == null ? <span className="admin-muted">Không đọc được</span> : <StatusPill active={check.blockchainActive} activeText="Đang hoạt động" inactiveText="Ngừng hoạt động" />}</td><td>{check?.synchronizedState ? <span className="admin-wallet">Đã đồng bộ</span> : <span className="admin-pill admin-pill-danger"><i />{check?.status === "BLOCKCHAIN_UNAVAILABLE" ? "Blockchain lỗi" : "Lệch trạng thái"}</span>}</td></tr>;
+    })}
+    {!facilities.length && <EmptyRow columns={6} text="Không tìm thấy cơ sở y tế." />}
   </tbody></table></div>;
 }
 
-type AuditRow = { id: string; action: string; actor: string; detail: string; cid: string; hash: string; txHash: string; time: string };
+type AuditRow = { id: string; action: string; actor: string; detail: string; cid: string; hash: string; txHash: string; reason: string; state: string; time: string };
 function AuditTable({ rows }: { rows: AuditRow[] }) {
-  const labels: Record<string, string> = { GRANT_ACCESS: "Cấp quyền", REVOKE_ACCESS: "Thu hồi quyền", UPLOAD_RECORD: "Tải hồ sơ lên" };
+  const labels: Record<string, string> = {
+    GRANT_ACCESS: "Cấp quyền",
+    REVOKE_ACCESS: "Thu hồi quyền",
+    UPLOAD_RECORD: "Tải hồ sơ lên",
+    DOCTOR_VERIFIED: "Xác thực bác sĩ",
+    DOCTOR_REJECTED: "Từ chối bác sĩ",
+    DOCTOR_RESUBMITTED: "Gửi duyệt lại",
+    USER_LOCKED: "Khóa tài khoản",
+    USER_UNLOCKED: "Mở khóa tài khoản",
+    EMERGENCY_ACCESS_ENDED: "Kết thúc quyền khẩn cấp",
+  };
   return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Sự kiện</th><th>Người thực hiện</th><th>Đối tượng / hồ sơ</th><th>Mã lưu trữ / toàn vẹn</th><th>Mã giao dịch</th><th>Thời gian</th></tr></thead><tbody>
-    {rows.map((row) => <tr key={row.id}><td><span className={`admin-event admin-event-${row.action.toLowerCase().replace("_", "-")}`}><Icon name={row.action === "UPLOAD_RECORD" ? "chain" : "wallet"} />{labels[row.action] ?? row.action}</span></td><td><b>{row.actor}</b></td><td>{row.detail}</td><td><code title={`${row.cid}\n${row.hash}`}>{shortHash(row.cid)}<br/><span>{shortHash(row.hash)}</span></code></td><td><code className="admin-tx" title={row.txHash}>{shortHash(row.txHash)}</code></td><td className="admin-time">{formatTime(row.time)}</td></tr>)}
+    {rows.map((row) => <tr key={row.id}><td><span className={`admin-event admin-event-${row.action.toLowerCase().replaceAll("_", "-")}`}><Icon name={row.action === "UPLOAD_RECORD" ? "chain" : "wallet"} />{labels[row.action] ?? row.action}</span></td><td><b>{row.actor}</b></td><td>{row.detail}{row.state && <small className="admin-cell-note">{row.state}</small>}{row.reason && <small className="admin-cell-note">Lý do: {row.reason}</small>}</td><td><code title={`${row.cid}\n${row.hash}`}>{shortHash(row.cid)}<br/><span>{shortHash(row.hash)}</span></code></td><td>{row.txHash ? <button className="admin-tx font-mono" title={row.txHash} onClick={() => void navigator.clipboard.writeText(row.txHash)}>{shortHash(row.txHash)}</button> : <span className="admin-muted">Không áp dụng</span>}</td><td className="admin-time">{formatTime(row.time)}</td></tr>)}
     {!rows.length && <EmptyRow columns={6} text="Chưa có giao dịch blockchain nào được ghi nhận." />}
   </tbody></table></div>;
 }

@@ -122,7 +122,14 @@ class IdentityFacilityAdminFlowTests {
                         .with(user(adminPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.verificationStatus").value("VERIFIED"))
+                .andExpect(jsonPath("$.data.reviewedByAdminUserId").value(999999))
+                .andExpect(jsonPath("$.data.reviewedAt").isNotEmpty())
                 .andExpect(jsonPath("$.data.verified").value(true));
+
+        mockMvc.perform(get("/admin/audit/system").with(user(adminPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[?(@.action == 'DOCTOR_VERIFIED' && @.targetId == '%s')]"
+                        .formatted(doctorProfileId)).exists());
     }
 
     @Test
@@ -145,9 +152,29 @@ class IdentityFacilityAdminFlowTests {
         long doctorProfileId = read(profileResult).at("/data/id").asLong();
 
         mockMvc.perform(post("/admin/doctors/{id}/reject", doctorProfileId)
-                        .with(user(adminPrincipal())))
+                        .with(user(adminPrincipal()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason":"Chứng chỉ hành nghề chưa hợp lệ"}
+                                """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.verificationStatus").value("REJECTED"));
+                .andExpect(jsonPath("$.data.verificationStatus").value("REJECTED"))
+                .andExpect(jsonPath("$.data.rejectionReason").value("Chứng chỉ hành nghề chưa hợp lệ"))
+                .andExpect(jsonPath("$.data.reviewedAt").isNotEmpty());
+
+        mockMvc.perform(post("/doctors/me/resubmit")
+                        .header("Authorization", bearer(doctorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.verificationStatus").value("PENDING_VERIFICATION"))
+                .andExpect(jsonPath("$.data.rejectionReason").doesNotExist());
+
+        mockMvc.perform(get("/admin/audit/system").with(user(adminPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[?(@.action == 'DOCTOR_REJECTED' && @.targetId == '%s')].reason"
+                        .formatted(doctorProfileId)).value(org.hamcrest.Matchers.hasItem(
+                                "Chứng chỉ hành nghề chưa hợp lệ")))
+                .andExpect(jsonPath("$.data.content[?(@.action == 'DOCTOR_RESUBMITTED' && @.targetId == '%s')]"
+                        .formatted(doctorProfileId)).exists());
 
         mockMvc.perform(post("/admin/users/{id}/lock", userId)
                         .with(user(adminPrincipal())))
@@ -189,6 +216,8 @@ class IdentityFacilityAdminFlowTests {
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/admin/audit/records").header("Authorization", bearer(patientToken)))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(get("/admin/audit/system").header("Authorization", bearer(patientToken)))
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/admin/patients").with(user(adminPrincipal())))
                 .andExpect(status().isOk())
@@ -201,6 +230,9 @@ class IdentityFacilityAdminFlowTests {
         mockMvc.perform(get("/admin/facilities").with(user(adminPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].active").exists());
+        mockMvc.perform(get("/admin/facilities/consistency").with(user(adminPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].status").exists());
         mockMvc.perform(get("/admin/audit/access").with(user(adminPrincipal())))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/admin/audit/records").with(user(adminPrincipal())))

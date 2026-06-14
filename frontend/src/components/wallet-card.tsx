@@ -2,16 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch, getSession, setSession, User } from "@/lib/api/client";
-import { connectWallet, shortAddress } from "@/lib/web3/provider";
+import { connectWallet, getConnectedWallet, shortAddress, watchConnectedWallet } from "@/lib/web3/provider";
 
 export function WalletCard({ onConnected }: { onConnected?(address: string): void }) {
-  const [address, setAddress] = useState("");
+  const [linkedAddress, setLinkedAddress] = useState("");
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const wallet = getSession()?.user.wallets[0];
-    if (wallet) setAddress(wallet);
+    setLinkedAddress(wallet ?? "");
+    void getConnectedWallet().then(setConnectedAddress);
+    return watchConnectedWallet(setConnectedAddress);
   }, []);
 
   async function connectAndVerify() {
@@ -19,7 +22,7 @@ export function WalletCard({ onConnected }: { onConnected?(address: string): voi
     setMessage("");
     try {
       const { signer, address: wallet } = await connectWallet();
-      setAddress(wallet);
+      setConnectedAddress(wallet);
       const nonce = await apiFetch<{ message: string }>("/auth/wallet/nonce", {
         method: "POST",
         body: JSON.stringify({ address: wallet }),
@@ -32,6 +35,7 @@ export function WalletCard({ onConnected }: { onConnected?(address: string): voi
       const user = await apiFetch<User>("/auth/me");
       const session = getSession();
       if (session) setSession({ ...session, user });
+      setLinkedAddress(user.wallets[0] ?? wallet);
       onConnected?.(wallet);
       setMessage("Ví đã được kết nối và xác minh.");
     } catch (error) {
@@ -44,9 +48,9 @@ export function WalletCard({ onConnected }: { onConnected?(address: string): voi
   return (
     <div className="card flex flex-wrap items-center justify-between gap-4">
       <div>
-        <p className="label">Ví đã xác minh</p>
-        <p className="mt-1 font-mono font-semibold">{shortAddress(address)}</p>
-        <p className="mt-1 text-xs text-slate-500">Liên kết MetaMask để xác nhận quyền sở hữu ví.</p>
+        <p className="label">{linkedAddress ? "Ví đã xác minh trong tài khoản" : "Chưa liên kết ví"}</p>
+        <p className="mt-1 font-mono font-semibold">{shortAddress(linkedAddress)}</p>
+        <p className="mt-1 text-xs text-slate-500">{walletConnectionLabel(linkedAddress, connectedAddress)}</p>
         {message && <p className="mt-2 text-sm text-slate-600">{message}</p>}
       </div>
       <button className="btn-secondary" disabled={busy} onClick={connectAndVerify}>
@@ -54,4 +58,17 @@ export function WalletCard({ onConnected }: { onConnected?(address: string): voi
       </button>
     </div>
   );
+}
+
+function walletConnectionLabel(linkedAddress: string, connectedAddress: string | null) {
+  if (!linkedAddress) {
+    return connectedAddress
+      ? `MetaMask đang kết nối ${shortAddress(connectedAddress)}, nhưng ví chưa được xác minh với tài khoản.`
+      : "Kết nối MetaMask và ký thông điệp để xác minh quyền sở hữu ví.";
+  }
+  if (!connectedAddress) return "Ví đã liên kết, nhưng MetaMask hiện chưa kết nối.";
+  if (linkedAddress.toLowerCase() === connectedAddress.toLowerCase()) {
+    return "MetaMask đang kết nối đúng ví đã xác minh.";
+  }
+  return `MetaMask đang dùng ${shortAddress(connectedAddress)}, không khớp ví đã xác minh.`;
 }

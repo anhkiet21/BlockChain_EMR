@@ -24,6 +24,7 @@ import com.blockchain.emr.patient.infrastructure.PatientProfileRepository;
 public class TestUserSeeder implements ApplicationRunner {
 
     private final boolean enabled;
+    private final boolean walletsEnabled;
     private final String password;
     private final UserRepository users;
     private final RoleRepository roles;
@@ -35,6 +36,7 @@ public class TestUserSeeder implements ApplicationRunner {
 
     public TestUserSeeder(
             @Value("${app.seed.test-users.enabled:false}") boolean enabled,
+            @Value("${app.seed.test-users.wallets-enabled:false}") boolean walletsEnabled,
             @Value("${app.seed.test-users.password:password123}") String password,
             UserRepository users,
             RoleRepository roles,
@@ -44,6 +46,7 @@ public class TestUserSeeder implements ApplicationRunner {
             HealthcareFacilityRepository facilities,
             PasswordEncoder passwordEncoder) {
         this.enabled = enabled;
+        this.walletsEnabled = walletsEnabled;
         this.password = password;
         this.users = users;
         this.roles = roles;
@@ -78,8 +81,13 @@ public class TestUserSeeder implements ApplicationRunner {
             profile.setVerified(true);
             return doctors.save(profile);
         });
-        seedWallet(patient, "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266");
-        seedWallet(doctor, "0x70997970c51812dc3a010c7d01b50e0d17dc79c8");
+        if (walletsEnabled) {
+            seedWallet(patient, "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266");
+            seedWallet(doctor, "0x70997970c51812dc3a010c7d01b50e0d17dc79c8");
+        } else {
+            wallets.deleteAll(wallets.findAllByUserId(patient.getId()));
+            wallets.deleteAll(wallets.findAllByUserId(doctor.getId()));
+        }
         wallets.deleteAll(wallets.findAllByUserId(admin.getId()));
     }
 

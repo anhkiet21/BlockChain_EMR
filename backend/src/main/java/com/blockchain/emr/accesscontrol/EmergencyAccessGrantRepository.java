@@ -37,4 +37,6 @@ public interface EmergencyAccessGrantRepository extends JpaRepository<EmergencyA
             @Param("occurredAt") Instant occurredAt);
 
     Page<EmergencyAccessGrant> findByPatientProfileUserIdOrderByCreatedAtDescIdDesc(Long userId, Pageable pageable);
+
+    Optional<EmergencyAccessGrant> findByIdAndPatientProfileUserId(Long id, Long userId);
 }

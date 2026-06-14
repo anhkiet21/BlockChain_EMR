@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.blockchain.emr.common.api.ApiResponse;
 import com.blockchain.emr.facility.api.dto.AdminHealthcareFacilityResponse;
+import com.blockchain.emr.facility.api.dto.FacilityConsistencyResponse;
 import com.blockchain.emr.facility.application.HealthcareFacilityService;
 
 @RestController
@@ -24,5 +25,10 @@ public class AdminHealthcareFacilityController {
     @GetMapping
     ApiResponse<List<AdminHealthcareFacilityResponse>> list() {
         return ApiResponse.success(service.listForAdmin());
+    }
+
+    @GetMapping("/consistency")
+    ApiResponse<List<FacilityConsistencyResponse>> consistency() {
+        return ApiResponse.success(service.consistency());
     }
 }

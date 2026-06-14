@@ -80,6 +80,14 @@ public class MedicalRecordRegistry extends Contract {
         return executeRemoteCallSingleValueReturn(function, Boolean.class);
     }
 
+    public RemoteFunctionCall<Boolean> activeFacilities(byte[] facilityId) {
+        Function function = new Function(
+                "activeFacilities",
+                Collections.singletonList(new Bytes32(facilityId)),
+                Collections.singletonList(new TypeReference<Bool>() {}));
+        return executeRemoteCallSingleValueReturn(function, Boolean.class);
+    }
+
     public RemoteFunctionCall<Record> getRecord(BigInteger recordId) {
         Function function = new Function(
                 "getRecord",
