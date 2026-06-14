@@ -11,6 +11,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -124,6 +125,58 @@ class UnifiedMedicalRecordServiceTests {
 
         verify(blockchain, never()).getRecordTransaction(anyString());
         verify(records, never()).save(any());
+    }
+
+    @Test
+    void doesNotWriteRecordAuditBeforeCorrectionIsConfirmedOnChain() {
+        long userId = 7L;
+        long patientUserId = 8L;
+        long patientId = 21L;
+        long recordId = 31L;
+        String doctorWalletAddress = "0x" + "1".repeat(40);
+        String patientWalletAddress = "0x" + "2".repeat(40);
+
+        DoctorProfile doctor = eligibleDoctor(userId);
+        User doctorUser = doctor.getUser();
+        HealthcareFacility facility = doctor.getHealthcareFacility();
+        User patientUser = mock(User.class);
+        PatientProfile patient = mock(PatientProfile.class);
+        MedicalRecord previous = mock(MedicalRecord.class);
+        MedicalFile file = mock(MedicalFile.class);
+        WalletAddress doctorWallet = mock(WalletAddress.class);
+        WalletAddress patientWallet = mock(WalletAddress.class);
+        MockMultipartFile multipart = new MockMultipartFile(
+                "file", "correction.pdf", "application/pdf", "correction".getBytes());
+
+        when(patientUser.getId()).thenReturn(patientUserId);
+        when(patient.getId()).thenReturn(patientId);
+        when(patient.getUser()).thenReturn(patientUser);
+        when(previous.getStatus()).thenReturn(MedicalRecordStatus.ACTIVE);
+        when(previous.getPatientProfile()).thenReturn(patient);
+        when(records.findById(recordId)).thenReturn(Optional.of(previous));
+        when(doctors.findByUserId(userId)).thenReturn(Optional.of(doctor));
+        when(access.canDoctorAccessPatient(userId, patientId)).thenReturn(true);
+        when(doctorWallet.getAddress()).thenReturn(doctorWalletAddress);
+        when(patientWallet.getAddress()).thenReturn(patientWalletAddress);
+        when(wallets.findFirstByUserIdOrderByIdAsc(userId)).thenReturn(Optional.of(doctorWallet));
+        when(wallets.findFirstByUserIdOrderByIdAsc(patientUserId)).thenReturn(Optional.of(patientWallet));
+        when(fileService.storeForPatient(
+                eq(patient),
+                eq(doctorUser),
+                eq(multipart),
+                eq(MedicalRecordSourceType.DOCTOR_UPLOADED),
+                eq(doctorWalletAddress),
+                eq(facility)))
+                .thenReturn(file);
+        when(file.getId()).thenReturn(41L);
+        when(file.getCid()).thenReturn("bafy-correction");
+        when(file.getContentHash()).thenReturn("b".repeat(64));
+        when(file.getSourceType()).thenReturn(MedicalRecordSourceType.DOCTOR_UPLOADED);
+        when(file.getHealthcareFacility()).thenReturn(facility);
+
+        service.uploadCorrection(userId, recordId, multipart);
+
+        verify(logs, never()).save(any(RecordAccessLog.class));
     }
 
     @Test

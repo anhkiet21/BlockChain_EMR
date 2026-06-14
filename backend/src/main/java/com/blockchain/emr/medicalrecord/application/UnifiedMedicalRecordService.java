@@ -137,7 +137,6 @@ public class UnifiedMedicalRecordService {
                 MedicalRecordSourceType.DOCTOR_UPLOADED,
                 doctorWallet,
                 doctor.getHealthcareFacility());
-        logs.save(new RecordAccessLog(previous, file, doctor.getUser(), "UPLOAD"));
         return pending(file, patientWallet, doctorWallet);
     }
 
