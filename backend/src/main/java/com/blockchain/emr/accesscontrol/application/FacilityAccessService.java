@@ -2,7 +2,9 @@ package com.blockchain.emr.accesscontrol.application;
 
 import static com.blockchain.emr.accesscontrol.api.FacilityAccessModels.*;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -14,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 import com.blockchain.emr.accesscontrol.FacilityAccessGrant;
 import com.blockchain.emr.accesscontrol.FacilityAccessAudit;
 import com.blockchain.emr.accesscontrol.FacilityAccessAuditRepository;
+import com.blockchain.emr.accesscontrol.EmergencyAccessGrant;
+import com.blockchain.emr.accesscontrol.EmergencyAccessGrantRepository;
 import com.blockchain.emr.accesscontrol.api.AdminFacilityAccessAuditResponse;
 import com.blockchain.emr.accesscontrol.FacilityAccessGrantRepository;
 import com.blockchain.emr.accesscontrol.FacilityAccessRequest;
@@ -41,6 +45,7 @@ public class FacilityAccessService {
     private final FacilityAccessRequestRepository requests;
     private final FacilityAccessGrantRepository grants;
     private final FacilityAccessAuditRepository audits;
+    private final EmergencyAccessGrantRepository emergencyAccess;
     private final BlockchainService blockchain;
 
     public FacilityAccessService(
@@ -51,6 +56,7 @@ public class FacilityAccessService {
             FacilityAccessRequestRepository requests,
             FacilityAccessGrantRepository grants,
             FacilityAccessAuditRepository audits,
+            EmergencyAccessGrantRepository emergencyAccess,
             BlockchainService blockchain) {
         this.patients = patients;
         this.doctors = doctors;
@@ -59,6 +65,7 @@ public class FacilityAccessService {
         this.requests = requests;
         this.grants = grants;
         this.audits = audits;
+        this.emergencyAccess = emergencyAccess;
         this.blockchain = blockchain;
     }
 
@@ -209,6 +216,89 @@ public class FacilityAccessService {
                 patientWallet.get().getAddress(), doctor.getHealthcareFacility().getFacilityId());
     }
 
+    @Transactional(readOnly = true)
+    public boolean canDoctorReadPatient(Long doctorUserId, Long patientProfileId) {
+        return canDoctorAccessPatient(doctorUserId, patientProfileId)
+                || hasActiveEmergencyAccess(doctorUserId, patientProfileId);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasActiveEmergencyAccess(Long doctorUserId, Long patientProfileId) {
+        DoctorProfile doctor = doctors.findByUserId(doctorUserId).orElse(null);
+        if (doctor == null || !doctor.isVerified()
+                || doctor.getHealthcareFacility() == null || !doctor.getHealthcareFacility().isActive()) {
+            return false;
+        }
+        return emergencyAccess.existsByPatientProfileIdAndFacilityIdAndEndedAtIsNullAndExpiresAtAfter(
+                patientProfileId,
+                doctor.getHealthcareFacility().getId(),
+                Instant.now());
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<EmergencyAccessResponse> activeEmergencyAccess(Long doctorUserId, Long patientProfileId) {
+        DoctorProfile doctor = requireEligibleDoctor(doctorUserId);
+        return emergencyAccess.findFirstByPatientProfileIdAndFacilityIdAndEndedAtIsNullAndExpiresAtAfterOrderByExpiresAtDesc(
+                        patientProfileId,
+                        doctor.getHealthcareFacility().getId(),
+                        Instant.now())
+                .map(grant -> emergencyResponse(grant, Instant.now()));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<EmergencyAccessResponse> emergencyAccessContextForAudit(
+            Long doctorUserId,
+            Long patientProfileId,
+            Instant occurredAt) {
+        return emergencyAccess.findEmergencyContextForAudit(patientProfileId, doctorUserId, occurredAt).stream()
+                .findFirst()
+                .map(grant -> emergencyResponse(grant, occurredAt));
+    }
+
+    @Transactional
+    @PreAuthorize("hasRole('DOCTOR') and #doctorUserId == authentication.principal.id")
+    public EmergencyAccessResponse activateEmergencyAccess(Long doctorUserId, EmergencyAccessRequest request) {
+        DoctorProfile doctor = requireEligibleDoctor(doctorUserId);
+        String identifier = request.patientIdentifier().trim();
+        PatientProfile patient = patients.findByUserIdentityNumberIgnoreCase(identifier)
+                .or(() -> patients.findByPatientCodeIgnoreCase(identifier))
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+        requireWallet(doctorUserId);
+        requireWallet(patient.getUser().getId());
+        var facility = doctor.getHealthcareFacility();
+        Instant now = Instant.now();
+        if (emergencyAccess.existsByPatientProfileIdAndFacilityIdAndEndedAtIsNullAndExpiresAtAfter(
+                patient.getId(), facility.getId(), now)) {
+            throw new ApplicationException(
+                    ErrorCode.CONFLICT,
+                    "Cơ sở y tế đang có quyền truy cập khẩn cấp còn hiệu lực với bệnh nhân này.");
+        }
+        int durationMinutes = request.durationMinutes() == null ? 120 : request.durationMinutes();
+        if (durationMinutes < 15 || durationMinutes > 360) {
+            throw new ApplicationException(ErrorCode.BAD_REQUEST, "Thời hạn khẩn cấp phải từ 15 đến 360 phút.");
+        }
+        EmergencyAccessGrant saved = emergencyAccess.save(new EmergencyAccessGrant(
+                patient,
+                facility,
+                doctor,
+                request.caseCode().trim(),
+                request.reason().trim(),
+                now.plusSeconds(durationMinutes * 60L)));
+        return emergencyResponse(saved, now);
+    }
+
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('PATIENT') and #patientUserId == authentication.principal.id")
+    public PageResponse<EmergencyAccessResponse> patientEmergencyAccessLogs(Long patientUserId, int page, int size) {
+        requirePatient(patientUserId);
+        int safeSize = Math.max(1, Math.min(size, 100));
+        Instant now = Instant.now();
+        return PageResponse.from(emergencyAccess.findByPatientProfileUserIdOrderByCreatedAtDescIdDesc(
+                        patientUserId,
+                        PageRequest.of(Math.max(page, 0), safeSize))
+                .map(grant -> emergencyResponse(grant, now)));
+    }
+
     private DoctorProfile requireEligibleDoctor(Long userId) {
         DoctorProfile doctor = doctors.findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
@@ -315,5 +405,21 @@ public class FacilityAccessService {
         return new FacilityGrantResponse(
                 grant.getFacility().getFacilityId(), grant.getFacility().getName(), grant.isActive(),
                 grant.getBlockchainTxHash(), grant.getUpdatedAt());
+    }
+
+    private EmergencyAccessResponse emergencyResponse(EmergencyAccessGrant grant, Instant now) {
+        return new EmergencyAccessResponse(
+                grant.getId(),
+                grant.getPatientProfile().getId(),
+                grant.getPatientProfile().getPatientCode(),
+                grant.getPatientProfile().getUser().getFullName(),
+                grant.getFacility().getFacilityId(),
+                grant.getFacility().getName(),
+                grant.getDoctorProfile().getUser().getFullName(),
+                grant.getCaseCode(),
+                grant.getReason(),
+                grant.getCreatedAt(),
+                grant.getExpiresAt(),
+                grant.isActive(now));
     }
 }

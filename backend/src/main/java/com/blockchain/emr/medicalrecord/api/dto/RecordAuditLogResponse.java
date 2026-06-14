@@ -13,5 +13,14 @@ public record RecordAuditLogResponse(
         List<String> actorRoles,
         String facilityId,
         String facilityName,
+        Long emergencyAccessId,
+        String emergencyCaseCode,
+        String emergencyReason,
+        String emergencyDoctorName,
+        String emergencyFacilityId,
+        String emergencyFacilityName,
+        Instant emergencyStartedAt,
+        Instant emergencyExpiresAt,
+        Boolean emergencyActiveAtActionTime,
         Instant createdAt) {
 }

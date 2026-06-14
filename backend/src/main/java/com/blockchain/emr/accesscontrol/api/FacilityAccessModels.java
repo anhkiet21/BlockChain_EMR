@@ -58,5 +58,25 @@ public final class FacilityAccessModels {
             String fullName,
             LocalDate dateOfBirth,
             Gender gender) {}
+
+    public record EmergencyAccessRequest(
+            @NotBlank @Size(max = 50) String patientIdentifier,
+            @NotBlank @Size(max = 80) String caseCode,
+            @NotBlank @Size(max = 1000) String reason,
+            Integer durationMinutes) {}
+
+    public record EmergencyAccessResponse(
+            Long id,
+            Long patientProfileId,
+            String patientCode,
+            String patientName,
+            String facilityId,
+            String facilityName,
+            String doctorName,
+            String caseCode,
+            String reason,
+            Instant createdAt,
+            Instant expiresAt,
+            boolean active) {}
 }
 

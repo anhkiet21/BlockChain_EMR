@@ -4,6 +4,7 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.blockchain.emr.accesscontrol.api.FacilityAccessModels.EmergencyAccessResponse;
 import com.blockchain.emr.accesscontrol.application.FacilityAccessService;
 import com.blockchain.emr.auth.domain.User;
 import com.blockchain.emr.auth.domain.WalletAddress;
@@ -329,18 +331,24 @@ public class UnifiedMedicalRecordService {
                 .map(this::response));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     @PreAuthorize("hasRole('DOCTOR') and #userId == authentication.principal.id")
     public PageResponse<UnifiedMedicalRecordResponse> doctorRecords(
             Long userId, Long patientId, int page, int size) {
         requireDoctor(userId);
-        if (!access.canDoctorAccessPatient(userId, patientId)) {
+        boolean normalAccess = access.canDoctorAccessPatient(userId, patientId);
+        boolean emergencyAccess = !normalAccess && access.hasActiveEmergencyAccess(userId, patientId);
+        if (!normalAccess && !emergencyAccess) {
             throw new AccessDeniedException("Facility has not been granted patient access");
         }
-        return PageResponse.from(records.findByPatientProfileId(
-                        patientId,
-                        PageRequest.of(Math.max(page, 0), safeSize(size), Sort.by("createdAt").descending()))
-                .map(this::response));
+        var recordPage = records.findByPatientProfileId(
+                patientId,
+                PageRequest.of(Math.max(page, 0), safeSize(size), Sort.by("createdAt").descending()));
+        if (emergencyAccess) {
+            User actor = requireUser(userId);
+            recordPage.forEach(record -> logs.save(new RecordAccessLog(record, null, actor, "EMERGENCY_VIEW")));
+        }
+        return PageResponse.from(recordPage.map(this::response));
     }
 
     @Transactional
@@ -349,14 +357,21 @@ public class UnifiedMedicalRecordService {
         MedicalRecord record = records.findById(recordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
         boolean patientOwner = record.getPatientProfile().getUser().getId().equals(userId);
-        if (!patientOwner && !access.canDoctorAccessPatient(userId, record.getPatientProfile().getId())) {
+        boolean normalAccess = !patientOwner && access.canDoctorAccessPatient(userId, record.getPatientProfile().getId());
+        boolean emergencyAccess = !patientOwner && !normalAccess
+                && access.hasActiveEmergencyAccess(userId, record.getPatientProfile().getId());
+        if (!patientOwner && !normalAccess && !emergencyAccess) {
             throw new AccessDeniedException("Medical record access denied");
         }
         MedicalFile file = recordFiles.findAllByMedicalRecordId(recordId).stream()
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Medical file not found"))
                 .getMedicalFile();
-        logs.save(new RecordAccessLog(record, file, requireUser(userId), "DOWNLOAD"));
+        logs.save(new RecordAccessLog(
+                record,
+                file,
+                requireUser(userId),
+                emergencyAccess ? "EMERGENCY_DOWNLOAD" : "DOWNLOAD"));
         return fileService.download(file);
     }
 
@@ -495,10 +510,17 @@ public class UnifiedMedicalRecordService {
 
     private RecordAuditLogResponse auditResponse(RecordAccessLog log) {
         MedicalRecord record = log.getMedicalRecord();
-        MedicalFile file = log.getMedicalFile();
-        var facility = record != null && record.getHealthcareFacility() != null
+        MedicalFile file = log.getMedicalFile() != null ? log.getMedicalFile() : primaryFile(record);
+        Optional<EmergencyAccessResponse> emergency = emergencyContext(log, record);
+        var facility = emergency.isPresent()
+                ? null
+                : record != null && record.getHealthcareFacility() != null
                 ? record.getHealthcareFacility()
                 : file == null ? null : file.getHealthcareFacility();
+        String facilityId = emergency.map(EmergencyAccessResponse::facilityId)
+                .orElse(facility == null ? null : facility.getFacilityId());
+        String facilityName = emergency.map(EmergencyAccessResponse::facilityName)
+                .orElse(facility == null ? null : facility.getName());
         return new RecordAuditLogResponse(
                 log.getId(),
                 record == null ? null : record.getId(),
@@ -510,9 +532,38 @@ public class UnifiedMedicalRecordService {
                         .map(role -> role.getName().name())
                         .sorted()
                         .toList(),
-                facility == null ? null : facility.getFacilityId(),
-                facility == null ? null : facility.getName(),
+                facilityId,
+                facilityName,
+                emergency.map(EmergencyAccessResponse::id).orElse(null),
+                emergency.map(EmergencyAccessResponse::caseCode).orElse(null),
+                emergency.map(EmergencyAccessResponse::reason).orElse(null),
+                emergency.map(EmergencyAccessResponse::doctorName).orElse(null),
+                emergency.map(EmergencyAccessResponse::facilityId).orElse(null),
+                emergency.map(EmergencyAccessResponse::facilityName).orElse(null),
+                emergency.map(EmergencyAccessResponse::createdAt).orElse(null),
+                emergency.map(EmergencyAccessResponse::expiresAt).orElse(null),
+                emergency.map(EmergencyAccessResponse::active).orElse(null),
                 log.getCreatedAt());
+    }
+
+    private Optional<EmergencyAccessResponse> emergencyContext(RecordAccessLog log, MedicalRecord record) {
+        if (record == null || !log.getAction().startsWith("EMERGENCY_")) {
+            return Optional.empty();
+        }
+        return access.emergencyAccessContextForAudit(
+                log.getActor().getId(),
+                record.getPatientProfile().getId(),
+                log.getCreatedAt());
+    }
+
+    private MedicalFile primaryFile(MedicalRecord record) {
+        if (record == null || record.getId() == null) {
+            return null;
+        }
+        return recordFiles.findAllByMedicalRecordId(record.getId()).stream()
+                .findFirst()
+                .map(MedicalRecordFile::getMedicalFile)
+                .orElse(null);
     }
 
     private PatientProfile requirePatientUser(Long userId) {

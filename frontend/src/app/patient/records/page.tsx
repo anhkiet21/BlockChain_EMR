@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { AccessState } from "@/components/access-state";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
 import { apiDownload, apiFetch } from "@/lib/api/client";
-import { Page, PendingRecordUpload, RecordAuditLog, RecordIntegrity, UnifiedMedicalRecord } from "@/lib/api/types";
+import { EmergencyAccessLog, Page, PendingRecordUpload, RecordAuditLog, RecordIntegrity, UnifiedMedicalRecord } from "@/lib/api/types";
 import { friendlyErrorMessage } from "@/lib/errors";
 import { createOnChainRecordWithMetadata } from "@/lib/web3/provider";
 
@@ -18,6 +18,8 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 ACTION_LABELS.INTEGRITY_CHECK = "Kiểm tra toàn vẹn";
+ACTION_LABELS.EMERGENCY_VIEW = "Xem bệnh án";
+ACTION_LABELS.EMERGENCY_DOWNLOAD = "Tải tệp";
 
 export default function PatientRecordsPage() {
   const access = useRequiredRole("PATIENT");
@@ -29,6 +31,7 @@ export default function PatientRecordsPage() {
   const [historyLogs, setHistoryLogs] = useState<RecordAuditLog[]>([]);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [integrity, setIntegrity] = useState<RecordIntegrity | null>(null);
+  const [emergencyLogs, setEmergencyLogs] = useState<EmergencyAccessLog[]>([]);
 
   useEffect(() => {
     if (access === "allowed") load();
@@ -36,7 +39,12 @@ export default function PatientRecordsPage() {
 
   async function load() {
     try {
-      setRecords((await apiFetch<Page<UnifiedMedicalRecord>>("/patient/records")).content);
+      const [recordData, emergencyData] = await Promise.all([
+        apiFetch<Page<UnifiedMedicalRecord>>("/patient/records"),
+        apiFetch<Page<EmergencyAccessLog>>("/patient/emergency-access-logs?size=20"),
+      ]);
+      setRecords(recordData.content);
+      setEmergencyLogs(emergencyData.content);
     } catch (error) {
       setMessage(friendlyErrorMessage(error, "Không tải được hồ sơ"));
     }
@@ -128,6 +136,38 @@ export default function PatientRecordsPage() {
 
       {message && <p className="status">{message}</p>}
 
+      <section className="card grid gap-4 border-amber-100 bg-amber-50/40">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="badge border-amber-200 bg-white text-amber-800">Nhật ký khẩn cấp</p>
+            <h2 className="mt-3 text-xl font-black">Truy cập khẩn cấp vào hồ sơ của bạn</h2>
+            <p className="mt-1 muted">Mỗi lần cơ sở y tế mở quyền khẩn cấp đều được ghi lại với lý do và thời hạn.</p>
+          </div>
+          <button className="btn-secondary" type="button" onClick={load}>Làm mới</button>
+        </div>
+        <div className="grid gap-3">
+          {emergencyLogs.length === 0 && <p className="muted">Chưa có truy cập khẩn cấp nào.</p>}
+          {emergencyLogs.map((log) => (
+            <article className="rounded-2xl border border-amber-200 bg-white p-4" key={log.id}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-black text-slate-950">{log.facilityName}</p>
+                  <p className="mt-1 text-sm text-slate-600">Bác sĩ {log.doctorName} · ca {log.caseCode}</p>
+                </div>
+                <span className={log.active ? "badge border-red-200 bg-red-50 text-red-800" : "badge"}>
+                  {log.active ? "Còn hiệu lực" : "Đã hết hạn"}
+                </span>
+              </div>
+              <p className="mt-3 text-sm text-slate-700"><b>Lý do:</b> {log.reason}</p>
+              <div className="mt-3 grid gap-2 text-xs font-semibold text-slate-500 md:grid-cols-2">
+                <p>Bắt đầu: {new Date(log.createdAt).toLocaleString("vi-VN")}</p>
+                <p>Hết hạn: {new Date(log.expiresAt).toLocaleString("vi-VN")}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <div className="table-wrap">
         <table>
           <thead>
@@ -215,23 +255,50 @@ export default function PatientRecordsPage() {
           <div className="grid gap-3">
             {historyBusy && <p className="status">Đang tải lịch sử hoạt động...</p>}
             {!historyBusy && historyLogs.length === 0 && <p className="muted">Chưa có hoạt động nào được ghi nhận.</p>}
-            {historyLogs.map((log) => (
-              <article className="rounded-2xl border border-slate-200 bg-white p-4" key={log.id}>
+            {historyLogs.map((log) => {
+              const emergency = log.action.startsWith("EMERGENCY_");
+              return (
+              <article
+                className={emergency
+                  ? "rounded-2xl border border-red-200 bg-red-50/70 p-4"
+                  : "rounded-2xl border border-slate-200 bg-white p-4"}
+                key={log.id}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <p className="font-black text-slate-950">{ACTION_LABELS[log.action] ?? log.action}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-black text-slate-950">{ACTION_LABELS[log.action] ?? log.action}</p>
+                      {emergency && <span className="badge border-red-200 bg-white text-red-800">Bằng quyền khẩn cấp</span>}
+                    </div>
                     <p className="mt-1 text-sm text-slate-600">
                       {log.actorName} · {log.actorRoles.map(roleLabel).join(", ")}
                     </p>
                   </div>
                   <span className="badge">{new Date(log.createdAt).toLocaleString("vi-VN")}</span>
                 </div>
-                <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
+                <div className="mt-3 grid gap-2 text-sm text-slate-600 md:grid-cols-2">
                   <p><b>Tệp:</b> {log.medicalFileName ?? "-"}</p>
                   <p><b>Cơ sở:</b> {log.facilityName ?? log.facilityId ?? "-"}</p>
                 </div>
+                {emergency && (
+                  <div className="mt-4 rounded-2xl border border-red-100 bg-white p-4 text-sm text-slate-700">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <p><b>Mã ca cấp cứu:</b> {log.emergencyCaseCode ?? "-"}</p>
+                      <p><b>Bác sĩ mở quyền:</b> {log.emergencyDoctorName ?? log.actorName}</p>
+                      <p><b>Cơ sở cấp cứu:</b> {log.emergencyFacilityName ?? log.facilityName ?? "-"}</p>
+                      <p>
+                        <b>Trạng thái lúc thao tác:</b>{" "}
+                        {log.emergencyActiveAtActionTime === false ? "Đã hết hiệu lực" : "Còn hiệu lực"}
+                      </p>
+                      <p><b>Bắt đầu:</b> {log.emergencyStartedAt ? new Date(log.emergencyStartedAt).toLocaleString("vi-VN") : "-"}</p>
+                      <p><b>Hết hạn:</b> {log.emergencyExpiresAt ? new Date(log.emergencyExpiresAt).toLocaleString("vi-VN") : "-"}</p>
+                    </div>
+                    <p className="mt-3"><b>Lý do khẩn cấp:</b> {log.emergencyReason ?? "Chưa có lý do được ghi nhận."}</p>
+                  </div>
+                )}
               </article>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}

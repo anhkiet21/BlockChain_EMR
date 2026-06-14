@@ -1,6 +1,7 @@
 package com.blockchain.emr.medicalrecord;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 import java.math.BigInteger;
@@ -8,8 +9,12 @@ import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import com.blockchain.emr.accesscontrol.api.FacilityAccessModels.EmergencyAccessResponse;
 import com.blockchain.emr.accesscontrol.application.FacilityAccessService;
 import com.blockchain.emr.auth.domain.User;
 import com.blockchain.emr.auth.domain.WalletAddress;
@@ -25,6 +30,8 @@ import com.blockchain.emr.medicalrecord.domain.MedicalFile;
 import com.blockchain.emr.medicalrecord.domain.MedicalRecordSourceType;
 import com.blockchain.emr.medicalrecord.domain.MedicalRecordStatus;
 import com.blockchain.emr.medicalrecord.domain.MedicalRecord;
+import com.blockchain.emr.medicalrecord.domain.MedicalRecordFile;
+import com.blockchain.emr.medicalrecord.domain.RecordAccessLog;
 import com.blockchain.emr.doctor.domain.DoctorProfile;
 import com.blockchain.emr.facility.domain.HealthcareFacility;
 import com.blockchain.emr.medicalrecord.infrastructure.MedicalFileRepository;
@@ -193,6 +200,117 @@ class UnifiedMedicalRecordServiceTests {
 
         verify(blockchain, never()).getRecord(any(), anyString());
         verify(records, never()).save(any());
+    }
+
+    @Test
+    void allowsEmergencyReadAndWritesEmergencyViewAudit() {
+        long userId = 7L;
+        long patientId = 21L;
+        DoctorProfile doctor = eligibleDoctor(userId);
+        User actor = doctor.getUser();
+        MedicalRecord record = mock(MedicalRecord.class);
+        PatientProfile patient = mock(PatientProfile.class);
+
+        when(doctors.findByUserId(userId)).thenReturn(Optional.of(doctor));
+        when(access.canDoctorAccessPatient(userId, patientId)).thenReturn(false);
+        when(access.hasActiveEmergencyAccess(userId, patientId)).thenReturn(true);
+        when(users.findById(userId)).thenReturn(Optional.of(actor));
+        when(record.getId()).thenReturn(31L);
+        when(record.getPatientProfile()).thenReturn(patient);
+        when(record.getSourceType()).thenReturn(MedicalRecordSourceType.PATIENT_UPLOADED);
+        when(record.getTitle()).thenReturn("Emergency record");
+        when(record.getRecordType()).thenReturn("APPLICATION_JSON");
+        when(record.getCid()).thenReturn("bafy-emergency");
+        when(record.getContentHash()).thenReturn("c".repeat(64));
+        when(record.getUploadedBy()).thenReturn(actor);
+        when(record.getUploadedByWallet()).thenReturn("0x" + "1".repeat(40));
+        when(record.getOnChainRecordId()).thenReturn(BigInteger.ONE);
+        when(record.getBlockchainTxHash()).thenReturn("0x" + "a".repeat(64));
+        when(record.getStatus()).thenReturn(MedicalRecordStatus.ACTIVE);
+        when(records.findByPatientProfileId(eq(patientId), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(java.util.List.of(record)));
+
+        service.doctorRecords(userId, patientId, 0, 20);
+
+        verify(logs).save(argThat(log -> "EMERGENCY_VIEW".equals(log.getAction())));
+    }
+
+    @Test
+    void deniesDoctorReadWithoutNormalOrEmergencyAccess() {
+        long userId = 7L;
+        long patientId = 21L;
+        DoctorProfile doctor = eligibleDoctor(userId);
+        when(doctors.findByUserId(userId)).thenReturn(Optional.of(doctor));
+        when(access.canDoctorAccessPatient(userId, patientId)).thenReturn(false);
+        when(access.hasActiveEmergencyAccess(userId, patientId)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.doctorRecords(userId, patientId, 0, 20))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(logs, never()).save(any(RecordAccessLog.class));
+    }
+
+    @Test
+    void patientAuditLogsIncludeEmergencyContextAndPrimaryFileName() {
+        long patientUserId = 8L;
+        long doctorUserId = 7L;
+        long patientId = 21L;
+        long recordId = 31L;
+        Instant grantedAt = Instant.parse("2026-06-14T06:00:00Z");
+        Instant actionAt = Instant.parse("2026-06-14T06:15:00Z");
+        Instant expiresAt = Instant.parse("2026-06-14T08:00:00Z");
+
+        User patientUser = mock(User.class);
+        User doctorUser = mock(User.class);
+        PatientProfile patient = mock(PatientProfile.class);
+        MedicalRecord record = mock(MedicalRecord.class);
+        MedicalFile file = mock(MedicalFile.class);
+
+        when(patientUser.getId()).thenReturn(patientUserId);
+        when(doctorUser.getId()).thenReturn(doctorUserId);
+        when(doctorUser.getFullName()).thenReturn("Bac Si Test");
+        when(doctorUser.getRoles()).thenReturn(java.util.Set.of());
+        when(patient.getId()).thenReturn(patientId);
+        when(patient.getUser()).thenReturn(patientUser);
+        when(record.getId()).thenReturn(recordId);
+        when(record.getPatientProfile()).thenReturn(patient);
+        when(file.getId()).thenReturn(41L);
+        when(file.getOriginalFilename()).thenReturn("emergency.pdf");
+        when(file.getHealthcareFacility()).thenReturn(null);
+
+        RecordAccessLog log = new RecordAccessLog(record, null, doctorUser, "EMERGENCY_VIEW");
+        ReflectionTestUtils.setField(log, "id", 51L);
+        ReflectionTestUtils.setField(log, "createdAt", actionAt);
+        when(records.findById(recordId)).thenReturn(Optional.of(record));
+        when(recordFiles.findAllByMedicalRecordId(recordId))
+                .thenReturn(java.util.List.of(new MedicalRecordFile(record, file)));
+        when(logs.findAllByMedicalRecordIdOrderByCreatedAtDescIdDesc(recordId))
+                .thenReturn(java.util.List.of(log));
+        when(access.emergencyAccessContextForAudit(doctorUserId, patientId, actionAt))
+                .thenReturn(Optional.of(new EmergencyAccessResponse(
+                        61L,
+                        patientId,
+                        "PAT-00000008",
+                        "Benh Nhan Test",
+                        "BV001",
+                        "Benh vien Cho Ray",
+                        "Bac Si Test",
+                        "ER-001",
+                        "Benh nhan bat tinh",
+                        grantedAt,
+                        expiresAt,
+                        true)));
+
+        var result = service.patientAuditLogs(patientUserId, recordId);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).medicalFileName()).isEqualTo("emergency.pdf");
+        assertThat(result.get(0).facilityId()).isEqualTo("BV001");
+        assertThat(result.get(0).emergencyAccessId()).isEqualTo(61L);
+        assertThat(result.get(0).emergencyCaseCode()).isEqualTo("ER-001");
+        assertThat(result.get(0).emergencyReason()).isEqualTo("Benh nhan bat tinh");
+        assertThat(result.get(0).emergencyExpiresAt()).isEqualTo(expiresAt);
+        assertThat(result.get(0).emergencyActiveAtActionTime()).isTrue();
     }
 
     private DoctorProfile eligibleDoctor(long userId) {

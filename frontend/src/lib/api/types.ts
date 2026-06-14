@@ -59,7 +59,17 @@ export type UnifiedMedicalRecord = {
 
 export type RecordAuditLog = {
   id: number; recordId?: number; medicalFileId?: number; medicalFileName?: string; action: string;
-  actorName: string; actorRoles: string[]; facilityId?: string; facilityName?: string; createdAt: string;
+  actorName: string; actorRoles: string[]; facilityId?: string; facilityName?: string;
+  emergencyAccessId?: number;
+  emergencyCaseCode?: string;
+  emergencyReason?: string;
+  emergencyDoctorName?: string;
+  emergencyFacilityId?: string;
+  emergencyFacilityName?: string;
+  emergencyStartedAt?: string;
+  emergencyExpiresAt?: string;
+  emergencyActiveAtActionTime?: boolean;
+  createdAt: string;
 };
 
 export type RecordIntegrity = {
@@ -88,6 +98,21 @@ export type PatientProfile = {
 
 export type PatientSummary = {
   id: number; patientCode: string; fullName: string; dateOfBirth?: string; gender?: string;
+};
+
+export type EmergencyAccessLog = {
+  id: number;
+  patientProfileId: number;
+  patientCode: string;
+  patientName: string;
+  facilityId: string;
+  facilityName: string;
+  doctorName: string;
+  caseCode: string;
+  reason: string;
+  createdAt: string;
+  expiresAt: string;
+  active: boolean;
 };
 
 export type AccessHistory = {

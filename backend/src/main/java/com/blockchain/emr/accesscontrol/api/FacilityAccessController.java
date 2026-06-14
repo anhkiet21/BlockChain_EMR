@@ -85,4 +85,19 @@ public class FacilityAccessController {
             @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success(service.authorizedPatients(user.id(), page, size));
     }
+
+    @PostMapping("/doctor/emergency-access")
+    ApiResponse<EmergencyAccessResponse> activateEmergencyAccess(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @Valid @RequestBody EmergencyAccessRequest request) {
+        return ApiResponse.success(service.activateEmergencyAccess(user.id(), request));
+    }
+
+    @GetMapping("/patient/emergency-access-logs")
+    ApiResponse<PageResponse<EmergencyAccessResponse>> patientEmergencyAccessLogs(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success(service.patientEmergencyAccessLogs(user.id(), page, size));
+    }
 }

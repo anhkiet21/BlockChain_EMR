@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { AccessState } from "@/components/access-state";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
 import { apiDownload, apiFetch } from "@/lib/api/client";
-import { DoctorProfile, Page, PatientSummary, PendingRecordUpload, UnifiedMedicalRecord } from "@/lib/api/types";
+import { DoctorProfile, EmergencyAccessLog, Page, PatientSummary, PendingRecordUpload, UnifiedMedicalRecord } from "@/lib/api/types";
 import { friendlyErrorMessage } from "@/lib/errors";
 import { createOnChainRecordVersion, createOnChainRecordWithMetadata } from "@/lib/web3/provider";
 
@@ -20,6 +20,9 @@ export default function DoctorRecordsPage() {
   const [patientHasAccess, setPatientHasAccess] = useState<boolean | null>(null);
   const [records, setRecords] = useState<UnifiedMedicalRecord[]>([]);
   const [reason, setReason] = useState("");
+  const [emergencyCaseCode, setEmergencyCaseCode] = useState("");
+  const [emergencyReason, setEmergencyReason] = useState("");
+  const [emergencyDuration, setEmergencyDuration] = useState("120");
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -90,6 +93,27 @@ export default function DoctorRecordsPage() {
       setMessage("Đã gửi yêu cầu truy cập cho bệnh nhân.");
     } catch (error) {
       setMessage(friendlyErrorMessage(error, "Không gửi được yêu cầu"));
+    }
+  }
+
+  async function activateEmergencyAccess() {
+    if (!patient) return;
+    try {
+      const emergency = await apiFetch<EmergencyAccessLog>("/doctor/emergency-access", {
+        method: "POST",
+        body: JSON.stringify({
+          patientIdentifier: patient.patientCode,
+          caseCode: emergencyCaseCode,
+          reason: emergencyReason,
+          durationMinutes: Number(emergencyDuration),
+        }),
+      });
+      setMessage(`Đã mở quyền xem bệnh án đến ${new Date(emergency.expiresAt).toLocaleString("vi-VN")}. Mọi thao tác bằng quyền khẩn cấp sẽ được ghi log.`);
+      setEmergencyCaseCode("");
+      setEmergencyReason("");
+      await loadRecords(patient);
+    } catch (error) {
+      setMessage(friendlyErrorMessage(error, "Không thể mở quyền xem bệnh án"));
     }
   }
 
@@ -255,6 +279,42 @@ export default function DoctorRecordsPage() {
                   <h2 className="font-black">Yêu cầu quyền cho {patient.fullName}</h2>
                   <textarea className="input" required placeholder="Lý do truy cập hồ sơ" value={reason} onChange={(e) => setReason(e.target.value)} />
                   <button className="btn-primary" onClick={requestAccess}>Gửi yêu cầu</button>
+                </div>
+              )}
+              {!patientHasAccess && (
+                <div className="card grid gap-3 border-amber-200 bg-amber-50/60">
+                  <div>
+                    <p className="badge border-amber-200 bg-white text-amber-800">Quyền khẩn cấp</p>
+                    <h2 className="mt-3 font-black">Xem bệnh án khi bệnh nhân không thể phản hồi</h2>
+                    <p className="mt-1 text-sm text-amber-900">
+                      Chỉ dùng trong cấp cứu. Quyền này chỉ cho xem/tải hồ sơ tạm thời và sẽ được ghi log cho bệnh nhân kiểm tra.
+                    </p>
+                  </div>
+                  <input
+                    className="input"
+                    required
+                    maxLength={80}
+                    placeholder="Mã ca cấp cứu / mã nhập viện"
+                    value={emergencyCaseCode}
+                    onChange={(event) => setEmergencyCaseCode(event.target.value)}
+                  />
+                  <textarea
+                    className="input"
+                    required
+                    maxLength={1000}
+                    placeholder="Lý do khẩn cấp"
+                    value={emergencyReason}
+                    onChange={(event) => setEmergencyReason(event.target.value)}
+                  />
+                  <select className="input" value={emergencyDuration} onChange={(event) => setEmergencyDuration(event.target.value)}>
+                    <option value="60">1 giờ</option>
+                    <option value="120">2 giờ</option>
+                    <option value="240">4 giờ</option>
+                    <option value="360">6 giờ</option>
+                  </select>
+                  <button className="btn-danger" type="button" onClick={activateEmergencyAccess}>
+                    Xem bệnh án
+                  </button>
                 </div>
               )}
               {patientHasAccess && (

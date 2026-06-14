@@ -40,9 +40,10 @@ class FacilityAccessServiceTests {
     private final FacilityAccessRequestRepository requests = mock(FacilityAccessRequestRepository.class);
     private final FacilityAccessGrantRepository grants = mock(FacilityAccessGrantRepository.class);
     private final FacilityAccessAuditRepository audits = mock(FacilityAccessAuditRepository.class);
+    private final EmergencyAccessGrantRepository emergencyAccess = mock(EmergencyAccessGrantRepository.class);
     private final BlockchainService blockchain = mock(BlockchainService.class);
     private final FacilityAccessService service = new FacilityAccessService(
-            patients, doctors, wallets, facilities, requests, grants, audits, blockchain);
+            patients, doctors, wallets, facilities, requests, grants, audits, emergencyAccess, blockchain);
 
     private static final long PATIENT_USER_ID = 7L;
     private static final long DOCTOR_USER_ID = 9L;
@@ -130,6 +131,45 @@ class FacilityAccessServiceTests {
     }
 
     @Test
+    void activatesEmergencyAccessForVerifiedDoctorFacility() {
+        createRequestContext();
+        when(emergencyAccess.save(any())).thenAnswer(invocation -> {
+            EmergencyAccessGrant grant = invocation.getArgument(0);
+            ReflectionTestUtils.setField(grant, "id", 71L);
+            ReflectionTestUtils.setField(grant, "createdAt", Instant.now());
+            return grant;
+        });
+
+        var result = service.activateEmergencyAccess(
+                DOCTOR_USER_ID,
+                new com.blockchain.emr.accesscontrol.api.FacilityAccessModels.EmergencyAccessRequest(
+                        "PAT-00000021", "ER-2026-001", "Patient is unconscious", 60));
+
+        assertThat(result.id()).isEqualTo(71L);
+        assertThat(result.patientProfileId()).isEqualTo(21L);
+        assertThat(result.facilityId()).isEqualTo("BV001");
+        assertThat(result.caseCode()).isEqualTo("ER-2026-001");
+        assertThat(result.active()).isTrue();
+        verify(emergencyAccess).save(any(EmergencyAccessGrant.class));
+    }
+
+    @Test
+    void rejectsDuplicateActiveEmergencyAccess() {
+        createRequestContext();
+        when(emergencyAccess.existsByPatientProfileIdAndFacilityIdAndEndedAtIsNullAndExpiresAtAfter(
+                eq(21L), eq(11L), any(Instant.class))).thenReturn(true);
+
+        assertThatThrownBy(() -> service.activateEmergencyAccess(
+                DOCTOR_USER_ID,
+                new com.blockchain.emr.accesscontrol.api.FacilityAccessModels.EmergencyAccessRequest(
+                        "PAT-00000021", "ER-2026-001", "Patient is unconscious", 60)))
+                .isInstanceOf(ApplicationException.class)
+                .hasMessageContaining("khẩn cấp");
+
+        verify(emergencyAccess, never()).save(any());
+    }
+
+    @Test
     void rejectsSuccessfulButUnrelatedFacilityTransaction() {
         String hash = "0x" + "a".repeat(64);
         var expected = new BlockchainService.PreparedTransaction(
@@ -154,6 +194,7 @@ class FacilityAccessServiceTests {
     private RequestContext createRequestContext() {
         DoctorProfile doctor = mock(DoctorProfile.class);
         PatientProfile patient = mock(PatientProfile.class);
+        User doctorUser = mock(User.class);
         User patientUser = mock(User.class);
         WalletAddress doctorWallet = mock(WalletAddress.class);
         WalletAddress patientWallet = mock(WalletAddress.class);
@@ -161,11 +202,15 @@ class FacilityAccessServiceTests {
         when(doctors.findByUserId(DOCTOR_USER_ID)).thenReturn(Optional.of(doctor));
         when(doctor.isVerified()).thenReturn(true);
         when(doctor.getHealthcareFacility()).thenReturn(facility);
+        when(doctor.getUser()).thenReturn(doctorUser);
+        when(doctorUser.getFullName()).thenReturn("Doctor Test");
         when(patients.findByUserIdentityNumberIgnoreCase("PAT-00000021")).thenReturn(Optional.empty());
         when(patients.findByPatientCodeIgnoreCase("PAT-00000021")).thenReturn(Optional.of(patient));
         when(patients.findById(21L)).thenReturn(Optional.of(patient));
         when(patient.getId()).thenReturn(21L);
         when(patient.getUser()).thenReturn(patientUser);
+        when(patient.getPatientCode()).thenReturn("PAT-00000021");
+        when(patientUser.getFullName()).thenReturn("Patient Test");
         when(patientUser.getId()).thenReturn(PATIENT_USER_ID);
         when(wallets.findFirstByUserIdOrderByIdAsc(DOCTOR_USER_ID)).thenReturn(Optional.of(doctorWallet));
         when(wallets.findFirstByUserIdOrderByIdAsc(PATIENT_USER_ID)).thenReturn(Optional.of(patientWallet));
