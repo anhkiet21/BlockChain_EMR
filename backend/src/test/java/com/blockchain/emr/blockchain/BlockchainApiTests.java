@@ -54,8 +54,11 @@ class BlockchainApiTests {
                 .andExpect(jsonPath("$.error.code").value("ACCESS_DENIED"));
 
         mockMvc.perform(get("/blockchain/records/{recordId}", BigInteger.ZERO)
-                        .header("Authorization", bearer(token)).param("callerWallet", WALLET_A))
-                .andExpect(status().isForbidden());
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/blockchain/records/by-system-id/{recordId}", 999999L)
+                        .header("Authorization", bearer(token)))
+                .andExpect(status().isNotFound());
         verifyNoInteractions(blockchainService);
     }
 

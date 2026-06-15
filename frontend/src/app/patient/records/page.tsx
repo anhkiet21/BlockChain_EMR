@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { AccessState } from "@/components/access-state";
+import { ReasonDialog } from "@/components/reason-dialog";
 import { useRequiredRole } from "@/lib/auth/use-required-role";
 import Link from "next/link";
 import { apiDownload, apiFetch, getSession } from "@/lib/api/client";
@@ -35,6 +36,7 @@ export default function PatientRecordsPage() {
   const [selectedRecord, setSelectedRecord] = useState<UnifiedMedicalRecord | null>(null);
   const [emergencyLogs, setEmergencyLogs] = useState<EmergencyAccessLog[]>([]);
   const [endingEmergencyId, setEndingEmergencyId] = useState<number | null>(null);
+  const [emergencyToEnd, setEmergencyToEnd] = useState<EmergencyAccessLog | null>(null);
 
   useEffect(() => {
     if (access === "allowed") load();
@@ -117,12 +119,7 @@ export default function PatientRecordsPage() {
     }
   }
 
-  async function endEmergencyAccess(log: EmergencyAccessLog) {
-    const reason = window.prompt(
-      "Lý do kết thúc quyền truy cập khẩn cấp:",
-      "Tôi không còn đồng ý cho phép truy cập khẩn cấp.",
-    );
-    if (reason === null) return;
+  async function endEmergencyAccess(log: EmergencyAccessLog, reason: string) {
     setEndingEmergencyId(log.id);
     setMessage("");
     try {
@@ -130,8 +127,9 @@ export default function PatientRecordsPage() {
         method: "POST",
         body: JSON.stringify({ reason }),
       });
-      setMessage("Đã kết thúc quyền truy cập khẩn cấp. Các lần đọc tiếp theo sẽ bị chặn.");
       await load();
+      setMessage("Đã kết thúc quyền truy cập khẩn cấp. Các lần đọc tiếp theo sẽ bị chặn.");
+      setEmergencyToEnd(null);
     } catch (error) {
       setMessage(friendlyErrorMessage(error, "Không thể kết thúc quyền truy cập khẩn cấp"));
     } finally {
@@ -200,7 +198,7 @@ export default function PatientRecordsPage() {
                   className="btn-danger mt-4"
                   type="button"
                   disabled={endingEmergencyId === log.id}
-                  onClick={() => endEmergencyAccess(log)}
+                  onClick={() => setEmergencyToEnd(log)}
                 >
                   {endingEmergencyId === log.id ? "Đang kết thúc..." : "Kết thúc quyền khẩn cấp"}
                 </button>
@@ -271,7 +269,7 @@ export default function PatientRecordsPage() {
           {getSession()?.user.wallets[0] && (
             <Link
               className="btn-primary w-fit"
-              href={`/blockchain?recordId=${encodeURIComponent(String(selectedRecord.onChainRecordId))}&callerWallet=${encodeURIComponent(getSession()!.user.wallets[0])}`}
+              href={`/blockchain?recordIdType=blockchain&recordId=${encodeURIComponent(String(selectedRecord.onChainRecordId))}`}
             >
               Kiểm tra hồ sơ trên blockchain
             </Link>
@@ -307,6 +305,23 @@ export default function PatientRecordsPage() {
           </div>
         </section>
       )}
+
+      <ReasonDialog
+        open={emergencyToEnd !== null}
+        title="Kết thúc quyền truy cập khẩn cấp"
+        description={emergencyToEnd
+          ? `Quyền của ${emergencyToEnd.facilityName} sẽ bị chặn ngay, dù thời hạn ban đầu chưa kết thúc.`
+          : ""}
+        label="Lý do kết thúc"
+        confirmLabel="Kết thúc quyền"
+        defaultValue=""
+        maxLength={500}
+        busy={emergencyToEnd !== null && endingEmergencyId === emergencyToEnd.id}
+        onCancel={() => setEmergencyToEnd(null)}
+        onConfirm={async (reason) => {
+          if (emergencyToEnd) await endEmergencyAccess(emergencyToEnd, reason);
+        }}
+      />
 
       {historyRecord && (
         <section className="card grid gap-4">

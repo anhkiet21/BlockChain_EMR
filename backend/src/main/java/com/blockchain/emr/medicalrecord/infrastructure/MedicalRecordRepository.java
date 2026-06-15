@@ -1,5 +1,6 @@
 package com.blockchain.emr.medicalrecord.infrastructure;
 
+import java.math.BigInteger;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -12,6 +13,7 @@ import jakarta.persistence.LockModeType;
 public interface MedicalRecordRepository extends JpaRepository<MedicalRecord, Long> {
     Page<MedicalRecord> findByPatientProfileId(Long patientId, Pageable pageable);
     Optional<MedicalRecord> findByIdAndPatientProfileUserId(Long id, Long userId);
+    Optional<MedicalRecord> findByOnChainRecordId(BigInteger onChainRecordId);
     Page<MedicalRecord> findByPatientProfileUserId(Long userId, Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

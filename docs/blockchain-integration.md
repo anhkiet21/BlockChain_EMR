@@ -7,14 +7,19 @@ Authenticated APIs:
 
 ```text
 GET  /api/blockchain/access?patientWallet=...&granteeWallet=...
-GET  /api/blockchain/records/{recordId}?callerWallet=...
+GET  /api/blockchain/records/{onChainRecordId}
+GET  /api/blockchain/records/by-system-id/{recordId}
 GET  /api/blockchain/transactions/{transactionHash}
 POST /api/blockchain/events/sync                         ADMIN
 ```
 
-Wallet query parameters must belong to the authenticated account, except for an
-administrator performing reconciliation. The Java wrapper is generated from the
-compiled `MedicalRecordRegistry.sol` ABI and lives under
+Wallet query parameters for access checks must belong to the authenticated
+account, except for an administrator performing reconciliation. Record checks
+first resolve the SQL medical record and authorize the patient owner, an
+authorized doctor, or an administrator. The backend then performs a read-only
+contract call with the patient's verified wallet as contract context; callers
+never provide a wallet to bypass object-level authorization. The Java wrapper
+is generated from the compiled `MedicalRecordRegistry.sol` ABI and lives under
 `integration/blockchain/generated`. Runtime code is grouped under `api`,
 `application`, `domain`, and `infrastructure`.
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccessState } from "@/components/access-state";
+import { ReasonDialog } from "@/components/reason-dialog";
 import { apiFetch } from "@/lib/api/client";
 import {
   AdminAccessAudit,
@@ -63,11 +64,12 @@ export default function AdminPage() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [rejectingDoctor, setRejectingDoctor] = useState<DoctorProfile | null>(null);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (clearMessage = true) => {
     setLoading(true);
-    setMessage(null);
+    if (clearMessage) setMessage(null);
     try {
       const [doctorPage, patientPage, facilityList, consistencyList, accessPage, recordPage, systemPage] = await Promise.all([
         apiFetch<Page<DoctorProfile>>("/admin/doctors/pending?size=100"),
@@ -94,28 +96,32 @@ export default function AdminPage() {
 
   useEffect(() => { if (access === "allowed") void load(); }, [access, load]);
 
-  async function doctorAction(doctor: DoctorProfile, action: "verify" | "reject" | "lock" | "unlock") {
+  async function doctorAction(
+    doctor: DoctorProfile,
+    action: "verify" | "reject" | "lock" | "unlock",
+    reason?: string,
+  ) {
     setBusyId(doctor.userId);
     setMessage(null);
     try {
       const path = action === "verify" || action === "reject"
         ? `/admin/doctors/${doctor.id}/${action}`
         : `/admin/users/${doctor.userId}/${action}`;
-      const reason = action === "reject"
-        ? window.prompt("Nhập lý do từ chối hồ sơ bác sĩ:", "Hồ sơ chưa đáp ứng yêu cầu xác thực.")
-        : null;
-      if (action === "reject" && reason === null) return;
       await apiFetch(path, {
         method: "POST",
         body: action === "verify" || action === "reject"
           ? JSON.stringify({ reason: reason || undefined })
           : undefined,
       });
+      await load(false);
       setMessage({ type: "ok", text: action === "verify" ? "Đã xác thực bác sĩ." : action === "reject" ? "Đã từ chối hồ sơ bác sĩ." : action === "lock" ? "Đã khóa tài khoản." : "Đã mở khóa tài khoản." });
-      await load();
+      return true;
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Cập nhật thất bại." });
-    } finally { setBusyId(null); }
+      return false;
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function togglePatient(patient: AdminPatient) {
@@ -151,6 +157,16 @@ export default function AdminPage() {
     { label: "Cơ sở y tế", value: facilities.length, note: `${facilities.filter((f) => f.active).length} đang hoạt động`, icon: "facility" as IconName, tone: "violet" },
     { label: "Nhật ký hệ thống", value: auditRows.length, note: "Bản ghi đã xác minh", icon: "chain" as IconName, tone: "emerald" },
   ];
+  const blockchainUnavailable = facilityConsistency.some((item) => item.status === "BLOCKCHAIN_UNAVAILABLE");
+  const blockchainSynchronized = facilityConsistency.length > 0
+    && facilityConsistency.every((item) => item.synchronizedState);
+  const blockchainHealth = loading
+    ? { className: "", title: "Đang kiểm tra", detail: "Đang đọc trạng thái cơ sở y tế trên blockchain." }
+    : blockchainUnavailable
+      ? { className: "admin-chain-health-error", title: "Không thể kết nối", detail: "RPC hoặc contract không phản hồi. Dữ liệu đối chiếu có thể chưa sẵn sàng." }
+      : blockchainSynchronized
+        ? { className: "", title: "Đang hoạt động", detail: "Dữ liệu cơ sở y tế đã đồng bộ và sẵn sàng đối chiếu." }
+        : { className: "admin-chain-health-warning", title: "Có dữ liệu lệch", detail: "Trạng thái cơ sở y tế trong hệ thống và blockchain chưa đồng nhất." };
 
   return (
     <section className="admin-shell">
@@ -180,7 +196,11 @@ export default function AdminPage() {
             <span><b>{item.label}</b><small>{item.description}</small></span>
             {item.id === "doctors" && doctors.length > 0 && <em>{doctors.length}</em>}
           </button>)}
-          <div className="admin-chain-health"><span><i /> Hệ thống xác minh</span><b>Đang hoạt động</b><small>Dữ liệu giao dịch sẵn sàng để đối chiếu.</small></div>
+          <div className={`admin-chain-health ${blockchainHealth.className}`}>
+            <span><i /> Hệ thống xác minh</span>
+            <b>{blockchainHealth.title}</b>
+            <small>{blockchainHealth.detail}</small>
+          </div>
         </aside>
 
         <main className="admin-content">
@@ -190,20 +210,49 @@ export default function AdminPage() {
           </div>
 
           {loading ? <div className="admin-empty">Đang tải dữ liệu quản trị…</div> : <>
-            {tab === "doctors" && <DoctorsTable doctors={filteredDoctors} busyId={busyId} onAction={doctorAction} />}
+            {tab === "doctors" && <DoctorsTable doctors={filteredDoctors} busyId={busyId} onAction={doctorAction} onReject={setRejectingDoctor} />}
             {tab === "patients" && <PatientsTable patients={filteredPatients} busyId={busyId} onToggle={togglePatient} />}
             {tab === "facilities" && <FacilitiesTable facilities={filteredFacilities} consistency={facilityConsistency} />}
             {tab === "audit" && <AuditTable rows={filteredAudit} />}
           </>}
         </main>
       </div>
+
+      <ReasonDialog
+        open={rejectingDoctor !== null}
+        title="Từ chối xác thực bác sĩ"
+        description={rejectingDoctor
+          ? `Nhập lý do cụ thể để ${rejectingDoctor.fullName} có thể chỉnh sửa và gửi xác thực lại.`
+          : ""}
+        label="Lý do từ chối"
+        confirmLabel="Xác nhận từ chối"
+        defaultValue=""
+        maxLength={1000}
+        busy={rejectingDoctor !== null && busyId === rejectingDoctor.userId}
+        onCancel={() => setRejectingDoctor(null)}
+        onConfirm={async (reason) => {
+          if (rejectingDoctor && await doctorAction(rejectingDoctor, "reject", reason)) {
+            setRejectingDoctor(null);
+          }
+        }}
+      />
     </section>
   );
 }
 
-function DoctorsTable({ doctors, busyId, onAction }: { doctors: DoctorProfile[]; busyId: number | null; onAction: (doctor: DoctorProfile, action: "verify" | "reject" | "lock" | "unlock") => void }) {
+function DoctorsTable({
+  doctors,
+  busyId,
+  onAction,
+  onReject,
+}: {
+  doctors: DoctorProfile[];
+  busyId: number | null;
+  onAction: (doctor: DoctorProfile, action: "verify" | "lock" | "unlock") => void;
+  onReject: (doctor: DoctorProfile) => void;
+}) {
   return <div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Bác sĩ</th><th>Định danh</th><th>Chứng chỉ hành nghề</th><th>Cơ sở y tế</th><th>Ví điện tử</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>
-    {doctors.map((doctor) => <tr key={doctor.id}><td><div className="admin-person"><span>{doctor.fullName.slice(0, 1).toUpperCase()}</span><div><b>{doctor.fullName}</b><small>{doctor.doctorCode}</small></div></div></td><td><b>{doctor.identityNumberMasked ?? "-"}</b><small className="admin-cell-note">CCCD / Mã định danh</small></td><td><code>{doctor.licenseNumber}</code></td><td><b>{doctor.facility?.name ?? "Chưa gán"}</b><small className="admin-cell-note">{doctor.facility?.facilityId ?? "-"}</small></td><td>{doctor.wallets.length ? <span className="admin-wallet"><Icon name="wallet" />Đã liên kết</span> : <span className="admin-muted">Chưa liên kết</span>}</td><td><StatusPill active={doctor.accountStatus === "ACTIVE"} activeText="Chờ xác thực" inactiveText="Đã khóa" /></td><td><div className="admin-actions"><button className="admin-action-approve" disabled={busyId === doctor.userId || !doctor.wallets.length} onClick={() => onAction(doctor, "verify")}>Xác thực</button><button disabled={busyId === doctor.userId} onClick={() => onAction(doctor, "reject")}>Từ chối</button><button className={doctor.accountStatus === "ACTIVE" ? "admin-action-lock" : "admin-action-unlock"} disabled={busyId === doctor.userId} onClick={() => onAction(doctor, doctor.accountStatus === "ACTIVE" ? "lock" : "unlock")}>{doctor.accountStatus === "ACTIVE" ? "Khóa" : "Mở khóa"}</button></div></td></tr>)}
+    {doctors.map((doctor) => <tr key={doctor.id}><td><div className="admin-person"><span>{doctor.fullName.slice(0, 1).toUpperCase()}</span><div><b>{doctor.fullName}</b><small>{doctor.doctorCode}</small></div></div></td><td><b>{doctor.identityNumberMasked ?? "-"}</b><small className="admin-cell-note">CCCD / Mã định danh</small></td><td><code>{doctor.licenseNumber}</code></td><td><b>{doctor.facility?.name ?? "Chưa gán"}</b><small className="admin-cell-note">{doctor.facility?.facilityId ?? "-"}</small></td><td>{doctor.wallets.length ? <span className="admin-wallet"><Icon name="wallet" />Đã liên kết</span> : <span className="admin-muted">Chưa liên kết</span>}</td><td><StatusPill active={doctor.accountStatus === "ACTIVE"} activeText="Chờ xác thực" inactiveText="Đã khóa" /></td><td><div className="admin-actions"><button className="admin-action-approve" disabled={busyId === doctor.userId || !doctor.wallets.length} onClick={() => onAction(doctor, "verify")}>Xác thực</button><button disabled={busyId === doctor.userId} onClick={() => onReject(doctor)}>Từ chối</button><button className={doctor.accountStatus === "ACTIVE" ? "admin-action-lock" : "admin-action-unlock"} disabled={busyId === doctor.userId} onClick={() => onAction(doctor, doctor.accountStatus === "ACTIVE" ? "lock" : "unlock")}>{doctor.accountStatus === "ACTIVE" ? "Khóa" : "Mở khóa"}</button></div></td></tr>)}
     {!doctors.length && <EmptyRow columns={7} text="Không có bác sĩ chờ xác thực." />}
   </tbody></table></div>;
 }

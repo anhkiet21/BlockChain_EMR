@@ -160,5 +160,5 @@ export type TransactionState = {
 
 export type OnChainRecord = {
   recordId: string; cid: string; contentHash?: string; patientWallet: string; authorWallet: string;
-  createdAt?: string; previousRecordId?: string; exists: boolean;
+  createdAt?: string; previousRecordId?: string; latestVersion: boolean;
 };

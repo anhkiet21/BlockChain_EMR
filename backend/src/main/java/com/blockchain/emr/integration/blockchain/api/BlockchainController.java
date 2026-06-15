@@ -1,6 +1,7 @@
 package com.blockchain.emr.integration.blockchain.api;
 
 import java.math.BigInteger;
+import java.time.Instant;
 
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,6 +17,7 @@ import com.blockchain.emr.common.api.ApiResponse;
 import com.blockchain.emr.integration.blockchain.application.BlockchainEventSyncService;
 import com.blockchain.emr.integration.blockchain.application.BlockchainQueryService;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
+import com.blockchain.emr.medicalrecord.application.MedicalRecordBlockchainQueryService;
 
 @RestController
 @RequestMapping("/blockchain")
@@ -23,10 +25,15 @@ public class BlockchainController {
 
     private final BlockchainQueryService queryService;
     private final BlockchainEventSyncService eventSyncService;
+    private final MedicalRecordBlockchainQueryService medicalRecordQueryService;
 
-    public BlockchainController(BlockchainQueryService queryService, BlockchainEventSyncService eventSyncService) {
+    public BlockchainController(
+            BlockchainQueryService queryService,
+            BlockchainEventSyncService eventSyncService,
+            MedicalRecordBlockchainQueryService medicalRecordQueryService) {
         this.queryService = queryService;
         this.eventSyncService = eventSyncService;
+        this.medicalRecordQueryService = medicalRecordQueryService;
     }
 
     @GetMapping("/access")
@@ -49,13 +56,22 @@ public class BlockchainController {
                 queryService.hasFacilityAccess(user.id(), user.roles().contains("ADMIN"), patientWallet, facilityId)));
     }
 
-    @GetMapping("/records/{recordId}")
-    ApiResponse<BlockchainService.OnChainRecord> record(
+    @GetMapping("/records/{onChainRecordId}")
+    ApiResponse<OnChainRecordResponse> record(
             @AuthenticationPrincipal AuthenticatedUser user,
-            @PathVariable BigInteger recordId,
-            @RequestParam String callerWallet) {
-        return ApiResponse.success(
-                queryService.getRecord(user.id(), user.roles().contains("ADMIN"), recordId, callerWallet));
+            @PathVariable BigInteger onChainRecordId) {
+        return ApiResponse.success(OnChainRecordResponse.from(
+                medicalRecordQueryService.getByOnChainRecordId(
+                        user.id(), user.roles().contains("ADMIN"), onChainRecordId)));
+    }
+
+    @GetMapping("/records/by-system-id/{recordId}")
+    ApiResponse<OnChainRecordResponse> recordBySystemId(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long recordId) {
+        return ApiResponse.success(OnChainRecordResponse.from(
+                medicalRecordQueryService.getBySystemRecordId(
+                        user.id(), user.roles().contains("ADMIN"), recordId)));
     }
 
     @GetMapping("/transactions/{transactionHash}")
@@ -71,4 +87,27 @@ public class BlockchainController {
 
     record AccessResponse(String patientWallet, String granteeWallet, boolean granted) {}
     record FacilityAccessResponse(String patientWallet, String facilityId, boolean granted) {}
+
+    record OnChainRecordResponse(
+            String recordId,
+            String cid,
+            String contentHash,
+            String patientWallet,
+            String authorWallet,
+            Instant createdAt,
+            String previousRecordId,
+            boolean latestVersion) {
+
+        static OnChainRecordResponse from(BlockchainService.OnChainRecord record) {
+            return new OnChainRecordResponse(
+                    record.recordId().toString(),
+                    record.cid(),
+                    record.contentHash(),
+                    record.patientWallet(),
+                    record.authorWallet(),
+                    record.createdAt(),
+                    record.previousRecordId() == null ? null : record.previousRecordId().toString(),
+                    record.latestVersion());
+        }
+    }
 }

@@ -1,6 +1,5 @@
 package com.blockchain.emr.integration.blockchain.application;
 
-import java.math.BigInteger;
 import java.util.Locale;
 
 import org.springframework.security.access.AccessDeniedException;
@@ -8,7 +7,6 @@ import org.springframework.stereotype.Service;
 
 import com.blockchain.emr.auth.infrastructure.WalletAddressRepository;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService;
-import com.blockchain.emr.integration.blockchain.domain.BlockchainService.OnChainRecord;
 import com.blockchain.emr.integration.blockchain.domain.BlockchainService.TransactionState;
 
 @Service
@@ -30,11 +28,6 @@ public class BlockchainQueryService {
     public boolean hasFacilityAccess(Long userId, boolean admin, String patientWallet, String facilityId) {
         requireOwnedWallet(userId, admin, patientWallet);
         return blockchainService.hasFacilityAccess(normalize(patientWallet), facilityId);
-    }
-
-    public OnChainRecord getRecord(Long userId, boolean admin, BigInteger recordId, String callerWallet) {
-        requireOwnedWallet(userId, admin, callerWallet);
-        return blockchainService.getRecord(recordId, normalize(callerWallet));
     }
 
     public TransactionState getTransactionState(String transactionHash) {
